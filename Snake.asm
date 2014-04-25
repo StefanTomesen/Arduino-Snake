@@ -18,13 +18,22 @@
 	.ORG 0x0000
 		jmp init			// Reset vector
 		nop
-	.ORG 0x0020
-		jmp isr_timerOF		// Timer 0 overflow vector
-		nop
+//	.ORG 0x0020
+//		jmp isr_timerOF		// Timer 0 overflow vector
+//		nop
 	.ORG INT_VECTORS_SIZE
 
+init:
 	// Initialize stack pointer
 	ldi rTemp, HIGH(RAMEND)
 	out SPH, rTemp
 	ldi rTemp, LOW(RAMEND)
 	out SPL, rTemp
+
+	sbi DDRD, 6
+	sbi DDRC, 0
+
+render:
+	sbi PORTD, 6
+	sbi PORTC, 0
+	jmp render
