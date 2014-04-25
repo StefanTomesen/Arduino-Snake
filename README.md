@@ -1,4 +1,4 @@
 Arduino Snake
 =============
 
-Snake game on an Arduino. Machine programming assignment at Högskola i Skövde.
+Snake game on an Arduino. Machine programming assignment at Högskolan i Skövde.
