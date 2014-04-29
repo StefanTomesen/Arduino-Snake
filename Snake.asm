@@ -54,7 +54,7 @@ init:
 	st	Y+, rTemp
 	ldi rTemp, 0b00100100
 	st	Y+, rTemp
-	ldi rTemp, 0b00000000
+	ldi rTemp, 0b00011000
 	st	Y+, rTemp
 	ldi rTemp, 0b01000010
 	st	Y+, rTemp
@@ -84,7 +84,11 @@ init:
 	sbi DDRB, 3	
 	sbi DDRB, 4	
 	sbi DDRB, 5
-	
+
+gameLogic:
+
+	jmp render
+
 render:
 	ldi rRow, 1				// Reset row count
 	ldi YH, HIGH(matrix)	// Set Y to matrix address
@@ -94,27 +98,8 @@ renderloop:
 	
 	ld rTemp, Y+			// Load byte from matrix
 
-	mov rCount1, rZero
-	mov rCount2, rZero
-	mov rCount3, rZero
-	mov rCount4, rZero
-
-delayLoop1:
-
-delayLoop2:
-
-delayLoop3:
-
-delayLoop4:
-	nop
-	nop
-	nop
-	nop
-
-	nop
-	inc rCount4
-	cpi rCount4, 200
-	brlt delayLoop4
+	ldi rCount1, 0
+delayLoop:
 
 	nop
 	nop
@@ -122,29 +107,9 @@ delayLoop4:
 	nop
 
 	nop
-	inc rCount3
-	cpi rCount3, 200
-	brlt delayLoop3
-
-	nop
-	nop
-	nop
-	nop
-
-	nop
-	inc rCount2
-	cpi rCount2, 200
-	brlt delayLoop2
-
-	nop
-	nop
-	nop
-	nop
-
-	nop
-	inc rCount1
-	cpi rCount1, 200
-	brlt delayLoop1
+	subi rCount1, -1
+	cpi rCount1, 255
+	brne delayLoop
 	
 	// clear all input
 	out PORTB, rZero
@@ -198,64 +163,4 @@ delayLoop4:
 	jmp renderloop
 
 gotologic:
-	jmp render			// TODO branch to game logic
-
-/*
-	subi rCounter, -1
-
-	cpi rCounter, 1
-	breq case1
-
-	cpi rCounter, 2
-	breq case2
-	
-	cpi rCounter, 3
-	breq case3
-	
-	cpi rCounter, 4
-	breq case4
-	
-	cpi rCounter, 5
-	breq case5
-	
-	cpi rCounter, 6
-	breq case6
-	
-	cpi rCounter, 7
-	breq case7
-	
-	cpi rCounter, 8
-	breq case8
-
-case1:
-	sbi PORTC, 0		// row 0
-	sbi PORTB, 5		// column 7
-	jmp render
-case2:
-	sbi PORTC, 1		// row 1
-	sbi PORTB, 2		// column 4
-	jmp render
-case3:
-	sbi PORTC, 2		// row 2
-	sbi PORTB, 4		// column 6
-	jmp render
-case4:
-	sbi PORTC, 3		// row 3
-	sbi PORTD, 6		// column 0
-	jmp render
-case5:
-	sbi PORTD, 2		// row 4
-	sbi PORTD, 7		// column 1
-	jmp render
-case6:
-	sbi PORTD, 3		// row 5
-	sbi PORTB, 1		// column 3
-	jmp render
-case7:
-	sbi PORTD, 4		// row 6
-	sbi PORTB, 3		// column 5
-	jmp render
-case8:
-	sbi PORTD, 5		// row 7
-	sbi PORTB, 0		// column 2
-	ldi rCounter, 0*/
+	jmp gameLogic
