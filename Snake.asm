@@ -1,10 +1,20 @@
 /*
- * Snake
+	Snake
+
+	avrdude -C "C:\WinAVR-20100110\bin\avrdude.conf" -patmega328p -Pcom4 -carduino -b115200 -Uflash:w:Snake.hex 
  */ 
 	
 	// Register definitions
+	.DEF	rTMP		= r0
+	.DEF	rZero		= r1
+
 	.DEF	rTemp		= r16
-	.DEF	rCounter	= r17
+	.DEF	rRow		= r17
+	.DEF	rMatrix		= r18
+
+	.DEF	rPortB		= r19
+	.DEF	rPortC		= r20
+	.DEF	rPortD		= r21
 
 	// Constant definitions
 	.EQU	NUM_COLUMNS = 8
@@ -13,7 +23,8 @@
 	// Data Segment
 	.DSEG
 	matrix:	.BYTE 8			// LED matrix - 1 bit per "pixel"
-	jumptable: .BYTE 16
+	//jumptable: .BYTE 16
+	
 	// Code segment
 	.CSEG
 	.ORG 0x0000
@@ -31,7 +42,20 @@ init:
 	ldi rTemp, LOW(RAMEND)
 	out SPL, rTemp
 
+	
 
+	st Y+, rMatrix
+
+	/*
+	out 0b00000000
+	out 0b00100100
+	out 0b00100100
+	out 0b00000000
+	out 0b10000010
+	out 0b01000100
+	out 0b00111000
+	out 0b00000000
+*/
 	// Set row bits as output bits
 	sbi DDRC, 0	
 	sbi DDRC, 1	
@@ -76,31 +100,151 @@ init:
 	sbi PORTB, 4		// column 6
 	sbi PORTB, 5		// column 7
 */
-
-	
+	// Load
+	ldi YH, HIGH(matrix)
+	ldi YL, LOW(matrix)
+	ld rMatrix, Y
 
 render:
+	ldi rRow, 1
+
+renderloop:
+
 	// Delay
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
 
 	// clear all input
-	cbi PORTC, 0		// row 0
-	cbi PORTC, 1		// row 1
-	cbi PORTC, 2		// row 2
-	cbi PORTC, 3		// row 3
-	cbi PORTD, 2		// row 4
-	cbi PORTD, 3		// row 5
-	cbi PORTD, 4		// row 6
-	cbi PORTD, 5		// row 7
+	out PORTB, rZero
+	out PORTC, rZero
+	out PORTD, rZero
 
-	cbi PORTD, 6		// column 0
-	cbi PORTD, 7		// column 1
-	cbi PORTB, 0		// column 2
-	cbi PORTB, 1		// column 3
-	cbi PORTB, 2		// column 4
-	cbi PORTB, 3		// column 5
-	cbi PORTB, 4		// column 6
-	cbi PORTB, 5		// column 7
+	ldi rTemp,	0b10101111
 
+	bst rTemp, 7	//
+	bld rPortD, 6
+
+	bst rTemp, 6
+	bld rPortD, 7
+
+	bst rTemp, 5
+	bld rPortB, 0
+
+	bst rTemp, 4
+	bld rPortB, 1
+
+	bst rTemp, 3
+	bld rPortB, 2
+
+	bst rTemp, 2
+	bld rPortB, 3
+
+	bst rTemp, 1
+	bld rPortB, 4
+
+	bst rTemp, 0
+	bld rPortB, 5
+
+	// row mapping
+	bst rRow, 0
+	bld rPortC, 0
+
+	bst rRow, 1
+	bld rPortC, 1
+
+	bst rRow, 2
+	bld rPortC, 2
+
+	bst rRow, 3
+	bld rPortC, 3
+
+	bst rRow, 4
+	bld rPortD, 2
+
+	bst rRow, 5
+	bld rPortD, 3
+
+	bst rRow, 6
+	bld rPortD, 4
+
+	bst rRow, 7
+	bld rPortD, 5
+
+	out PORTB, rPortB
+	out PORTC, rPortC
+	out PORTD, rPortD
+
+	cpi rRow, 0x80
+	breq gotologic
+	lsl rRow
+	jmp renderloop
+
+gotologic:
+	jmp render			// TODO branch to game logic
+
+/*
 	subi rCounter, -1
 
 	cpi rCounter, 1
@@ -129,34 +273,33 @@ render:
 
 case1:
 	sbi PORTC, 0		// row 0
-	sbi PORTD, 6		// column 0
+	sbi PORTB, 5		// column 7
 	jmp render
 case2:
-	sbi PORTC, 1		// row 0
-	sbi PORTD, 7		// column 0
+	sbi PORTC, 1		// row 1
+	sbi PORTB, 2		// column 4
 	jmp render
 case3:
-	sbi PORTC, 2		// row 0
-	sbi PORTB, 0		// column 0
+	sbi PORTC, 2		// row 2
+	sbi PORTB, 4		// column 6
 	jmp render
 case4:
-	sbi PORTC, 3		// row 4
-	sbi PORTB, 1		// column 4
+	sbi PORTC, 3		// row 3
+	sbi PORTD, 6		// column 0
 	jmp render
 case5:
 	sbi PORTD, 2		// row 4
-	sbi PORTB, 2		// column 4
+	sbi PORTD, 7		// column 1
 	jmp render
 case6:
-	sbi PORTD, 3		// row 4
-	sbi PORTB, 3		// column 4
+	sbi PORTD, 3		// row 5
+	sbi PORTB, 1		// column 3
 	jmp render
 case7:
-	sbi PORTD, 4		// row 4
-	sbi PORTB, 4		// column 4
+	sbi PORTD, 4		// row 6
+	sbi PORTB, 3		// column 5
 	jmp render
 case8:
-	sbi PORTD, 5		// row 4
-	sbi PORTB, 5		// column 4
-	ldi rCounter, 0
-	jmp render
+	sbi PORTD, 5		// row 7
+	sbi PORTB, 0		// column 2
+	ldi rCounter, 0*/
