@@ -10,11 +10,15 @@
 
 	.DEF	rTemp		= r16
 	.DEF	rRow		= r17
-	.DEF	rMatrix		= r18
 
 	.DEF	rPortB		= r19
 	.DEF	rPortC		= r20
 	.DEF	rPortD		= r21
+
+	.DEF	rCount1		= r22
+	.DEF	rCount2		= r23
+	.DEF	rCount3		= r24
+	.DEF	rCount4		= r25
 
 	// Constant definitions
 	.EQU	NUM_COLUMNS = 8
@@ -23,7 +27,6 @@
 	// Data Segment
 	.DSEG
 	matrix:	.BYTE 8			// LED matrix - 1 bit per "pixel"
-	//jumptable: .BYTE 16
 	
 	// Code segment
 	.CSEG
@@ -42,20 +45,26 @@ init:
 	ldi rTemp, LOW(RAMEND)
 	out SPL, rTemp
 
+	ldi YH, HIGH(matrix)	// Set Y to matrix address
+	ldi YL, LOW(matrix)
 	
-
-	st Y+, rMatrix
-
-	/*
-	out 0b00000000
-	out 0b00100100
-	out 0b00100100
-	out 0b00000000
-	out 0b10000010
-	out 0b01000100
-	out 0b00111000
-	out 0b00000000
-*/
+	ldi rTemp, 0b10000001
+	st	Y+, rTemp
+	ldi rTemp, 0b00100100
+	st	Y+, rTemp
+	ldi rTemp, 0b00100100
+	st	Y+, rTemp
+	ldi rTemp, 0b00000000
+	st	Y+, rTemp
+	ldi rTemp, 0b01000010
+	st	Y+, rTemp
+	ldi rTemp, 0b01000010
+	st	Y+, rTemp
+	ldi rTemp, 0b00111100
+	st	Y+, rTemp
+	ldi rTemp, 0b10000001
+	st	Y+, rTemp
+	
 	// Set row bits as output bits
 	sbi DDRC, 0	
 	sbi DDRC, 1	
@@ -75,161 +84,107 @@ init:
 	sbi DDRB, 3	
 	sbi DDRB, 4	
 	sbi DDRB, 5
-
-
-/*
-	// set bit row table
-
-	sbi PORTC, 0		// row 0
-	sbi PORTC, 1		// row 1
-	sbi PORTC, 2		// row 2
-	sbi PORTC, 3		// row 3
-	sbi PORTD, 2		// row 4
-	sbi PORTD, 3		// row 5
-	sbi PORTD, 4		// row 6
-	sbi PORTD, 5		// row 7
-
-	// set bit column table
-
-	sbi PORTD, 6		// column 0
-	sbi PORTD, 7		// column 1
-	sbi PORTB, 0		// column 2
-	sbi PORTB, 1		// column 3
-	sbi PORTB, 2		// column 4
-	sbi PORTB, 3		// column 5
-	sbi PORTB, 4		// column 6
-	sbi PORTB, 5		// column 7
-*/
-	// Load
-	ldi YH, HIGH(matrix)
-	ldi YL, LOW(matrix)
-	ld rMatrix, Y
-
+	
 render:
-	ldi rRow, 1
+	ldi rRow, 1				// Reset row count
+	ldi YH, HIGH(matrix)	// Set Y to matrix address
+	ldi YL, LOW(matrix)
 
 renderloop:
+	
+	ld rTemp, Y+			// Load byte from matrix
 
-	// Delay
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
+	mov rCount1, rZero
+	mov rCount2, rZero
+	mov rCount3, rZero
+	mov rCount4, rZero
+
+delayLoop1:
+
+delayLoop2:
+
+delayLoop3:
+
+delayLoop4:
 	nop
 	nop
 	nop
 	nop
 
+	nop
+	inc rCount4
+	cpi rCount4, 200
+	brlt delayLoop4
+
+	nop
+	nop
+	nop
+	nop
+
+	nop
+	inc rCount3
+	cpi rCount3, 200
+	brlt delayLoop3
+
+	nop
+	nop
+	nop
+	nop
+
+	nop
+	inc rCount2
+	cpi rCount2, 200
+	brlt delayLoop2
+
+	nop
+	nop
+	nop
+	nop
+
+	nop
+	inc rCount1
+	cpi rCount1, 200
+	brlt delayLoop1
+	
 	// clear all input
 	out PORTB, rZero
 	out PORTC, rZero
 	out PORTD, rZero
 
-	ldi rTemp,	0b10101111
-
-	bst rTemp, 7	//
+	// set columns from loaded byte
+	bst rTemp, 7	// column 7
 	bld rPortD, 6
-
-	bst rTemp, 6
+	bst rTemp, 6	// column 6
 	bld rPortD, 7
-
-	bst rTemp, 5
+	bst rTemp, 5	// column 5
 	bld rPortB, 0
-
-	bst rTemp, 4
+	bst rTemp, 4	// column 4
 	bld rPortB, 1
-
-	bst rTemp, 3
+	bst rTemp, 3	// column 3
 	bld rPortB, 2
-
-	bst rTemp, 2
+	bst rTemp, 2	// column 2
 	bld rPortB, 3
-
-	bst rTemp, 1
+	bst rTemp, 1	// column 1
 	bld rPortB, 4
-
-	bst rTemp, 0
+	bst rTemp, 0	// column 0
 	bld rPortB, 5
 
-	// row mapping
-	bst rRow, 0
+	// set row from rRow
+	bst rRow, 0		// column 0
 	bld rPortC, 0
-
-	bst rRow, 1
+	bst rRow, 1		// column 1
 	bld rPortC, 1
-
-	bst rRow, 2
+	bst rRow, 2		// column 2
 	bld rPortC, 2
-
-	bst rRow, 3
+	bst rRow, 3		// column 3
 	bld rPortC, 3
-
-	bst rRow, 4
+	bst rRow, 4		// column 4
 	bld rPortD, 2
-
-	bst rRow, 5
+	bst rRow, 5		// column 5
 	bld rPortD, 3
-
-	bst rRow, 6
+	bst rRow, 6		// column 6
 	bld rPortD, 4
-
-	bst rRow, 7
+	bst rRow, 7		// column 7
 	bld rPortD, 5
 
 	out PORTB, rPortB
@@ -239,6 +194,7 @@ renderloop:
 	cpi rRow, 0x80
 	breq gotologic
 	lsl rRow
+	lsl rTemp
 	jmp renderloop
 
 gotologic:
