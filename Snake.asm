@@ -5,7 +5,7 @@
 	avrdude -C "C:\WinAVR-20100110\bin\avrdude.conf" -patmega328p -Pcom4 -carduino -b115200 -Uflash:w:Snake.hex 
 
 	// Thism2 assemble setting
-	avrdude -C "E:\Övrigt\WinAVR-20100110\bin\avrdude.conf" -patmega328p -Pcom4 -carduino -b115200 -Uflash:w:Snake.hex 
+	avrdude -C "E:\Övrigt\WinAVR-20100110\bin\avrdude.conf" -patmega328p -Pcom3 -carduino -b115200 -Uflash:w:Snake.hex 
 
  */ 
 	
@@ -29,8 +29,8 @@
 	.DEF	rArgument1H	= r23
 
 	// Constant definitions
-	.EQU	NUM_COLUMNS = 8
-	.EQU	NUM_ROWS = 8
+	.EQU	NUM_COLUMNS	= 8
+	.EQU	NUM_ROWS	= 8
 
 	// Data Segment
 	.DSEG
@@ -40,7 +40,7 @@ matrix:
 	// Code segment
 	.CSEG
 	.ORG	0x0000
-		jmp		main			// Reset vector
+		jmp		init			// Reset vector
 		nop
 
 //	.ORG	0x0020
@@ -53,21 +53,142 @@ matrix:
  * Entry point
  */
 main:
-	// Initialize stack pointer
-	ldi		rTempI, HIGH(RAMEND)
-	out		SPH, rTempI
-	ldi		rTempI, LOW(RAMEND)
-	out		SPL, rTempI
+		/* The joystick X,Y axis 8 bit value */
+		.DEF	rJoystickX	= r6
+		.DEF	rJoystickY	= r7
 
-	call init
-	call gameLoop
+		/* rColumn, rRow */
+		.DEF	rColumn		= r8
+		.DEF	rRow		= r9
+
+		/* Joystick input registries */
+		.DEF	rJoystickL	= r4
+		.DEF	rJoystickH	= r5
+
+	// Read X axis
+	ldi		rArgument0L, 1			// 1 represents X
+	call	readJoystick
+	mov		rJoystickL, rReturnL	// Store joystick input value
+	mov		rJoystickH, rReturnH
+
+	// Convert 10 bit value to 8 bit, discarding lowest 2 bits
+	mov		rArgument0L, rReturnL
+	mov		rArgument0H, rReturnH
+	call	joystickValueTo8Bit
+	mov		rTempI, rReturnL
+
+// TODO Replace temporary code
+	// right shift some more to make the value 3 bits (row 0-7)
+	lsr		rTempI
+	lsr		rTempI
+	lsr		rTempI
+	lsr		rTempI
+	lsr		rTempI
+	mov		rColumn, rTempI
+
+	// rverse order rColumn (7-0 -> 0-7)
+	ldi		rTempI, 7
+	sub		rTempI, rColumn
+	mov		rColumn, rTempI
+
+	// Read Y axis
+	ldi		rArgument0L, 0
+	call	readJoystick
+	mov		rJoystickL, rReturnL	// Store joystick input value
+	mov		rJoystickH, rReturnH
+
+	// Convert 10 bit value to 8 bit, discarding lowest 2 bits
+	mov		rArgument0L, rJoystickL
+	mov		rArgument0H, rJoystickH
+	call	joystickValueTo8Bit
+	mov		rTempI, rReturnL
+
+		.UNDEF	rJoystickL
+		.UNDEF	rJoystickH
+
+// TODO Replace temporary code
+	// Right shift joystick input until it's 3 bits (row 0-7)
+	lsr		rTempI
+	lsr		rTempI
+	lsr		rTempI
+	lsr		rTempI
+	lsr		rTempI
+	mov		rRow, rTempI
+
+	// rverse order rRow (7-0 -> 0-7)
+	ldi		rTempI, 7
+	sub		rTempI, rRow
+	mov		rRow, rTempI
+
+	// set joystick pixel
+	mov		rArgument0L, rRow
+	mov		rArgument1L, rColumn
+
+	// if at pixel(X,Y) (0,0) run ---EMPTY--- program
+	push	rTempI
+	ldi		rTempI, 0
+	cp		rRow, rTempI
+	brne	runProgram00End
+	ldi		rTempI, 0
+	cp		rColumn, rTempI
+	brne	runProgram00End
+	call	terminate
+	pop		rTempI
+runProgram00End:
+
+	// if at pixel(X,Y) (0,7) run renderJoystick program
+	push	rTempI
+	ldi		rTempI, 0
+	cp		rRow, rTempI
+	brne	runProgram07End
+	ldi		rTempI, 7
+	cp		rColumn, rTempI
+	brne	runProgram07End
+	call	renderJoystick
+	pop		rTempI
+runProgram07End:
+
+	// if at pixel(X,Y) (7,0) run ---EMPTY--- program
+	push	rTempI
+	ldi		rTempI, 7
+	cp		rRow, rTempI
+	brne	runProgram70End
+	ldi		rTempI, 0
+	cp		rColumn, rTempI
+	brne	runProgram70End
+	call	terminate
+	pop		rTempI
+runProgram70End:
+
+	// if at pixel(X,Y) (7,7) run fillBoard program
+	push	rTempI
+	ldi		rTempI, 7
+	cp		rRow, rTempI
+	brne	runProgram77End
+	ldi		rTempI, 7
+	cp		rColumn, rTempI
+	brne	runProgram77End
+	call	fillBoard
+	pop		rTempI
+runProgram77End:
+
+	call	snakeGame			// default will run the snakeGame program
+
+		.UNDEF	rJoystickY
+		.UNDEF	rJoystickX
+		.UNDEF	rRow
+		.UNDEF	rColumn
+
+	ret							// if program returned, exit main
 /* main end */
 
+
+
 /**
- * Initialize the hardware
+ * start runing the snake game
  */
-init:
-	// smiley
+snakeGame:
+	// Initialize the matrix with a smiley
 	ldi		YH, HIGH(matrix)	// Set Y to matrix address
 	ldi		YL, LOW(matrix)
 	ldi		rTempI, 0b10000001
@@ -87,7 +208,7 @@ init:
 	ldi		rTempI, 0b10000001
 	st		Y+, rTempI
 
-	// templar cross
+	// Initialize the matrix with a templar cross symbol
 	ldi		YH, HIGH(matrix)	// Set Y to matrix address
 	ldi		YL, LOW(matrix)
 	ldi		rTempI, 0b11011111
@@ -106,47 +227,7 @@ init:
 	st		Y+, rTempI
 	ldi		rTempI, 0b11011111
 	st		Y+, rTempI
-		
-	// Set row bits as output bits
-	sbi		DDRC, 0	
-	sbi		DDRC, 1	
-	sbi		DDRC, 2	
-	sbi		DDRC, 3	
-	sbi		DDRD, 2	
-	sbi		DDRD, 3	
-	sbi		DDRD, 4	
-	sbi		DDRD, 5	
 
-	// Set column bits as output bits
-	sbi		DDRD, 6	
-	sbi		DDRD, 7	
-	sbi		DDRB, 0	
-	sbi		DDRB, 1	
-	sbi		DDRB, 2	
-	sbi		DDRB, 3	
-	sbi		DDRB, 4	
-	sbi		DDRB, 5
-	
-	// Set X/Y joystick as input bit
-	cbi		DDRC, 4				// PORTC4 aka Y axis
-	cbi		DDRC, 5				// PORTC5 aka X axis
-
-	// Initialize analog / digital converter
-	lds		rTempI, ADMUX
-	sbr		rTempI, 0b01000000
-	cbr		rTempI, 0b10000000
-	sts		ADMUX, rTempI
-
-	lds		rTempI, ADCSRA
-	sbr		rTempI, 0b10000111
-	sts		ADCSRA, rTempI
-
-	ret
-/* init end */
-
-/**
- * Game loop
- */
 gameLoop:
 	call clearMatrix
 	
@@ -169,10 +250,6 @@ gameLoop:
 	call	joystickValueTo8Bit
 	mov		rJoystickX, rReturnL
 
-		
-		.UNDEF	rJoystickL
-		.UNDEF	rJoystickH
-
 // TODO Replace temporary code
 	// right shift some more to make the value 3 bits (row 0-7)
 	mov		rTemp, rJoystickX
@@ -187,24 +264,13 @@ gameLoop:
 
 		/* rColumn */
 		.DEF rColumn		= r6
-		.DEF rColumnMask	= r8
 
 	mov		rColumn, rTempI
 
-	// convert value to row mask
-	clr		rColumnMask
-	inc		rColumnMask
-shiftLoop:
-	cpi		rTempI, 0
-	breq	shiftEnd
-	subi	rTempI, 1
-	lsl		rColumnMask
-	jmp		shiftLoop
-shiftEnd:
-
-		/* Joystick input registries */
-		.DEF	rJoystickL	= r4
-		.DEF	rJoystickH	= r5
+	// rverse order rColumn (7-0 -> 0-7)
+	ldi		rTempI, 7
+	sub		rTempI, rColumn
+	mov		rColumn, rTempI
 
 	// Read Y axis
 	ldi		rArgument0L, 0
@@ -240,13 +306,24 @@ shiftEnd:
 
 	mov		rRow, rTemp
 
-	// rverse order rRow and rColumn (7-0 -> 0-7)
+	// rverse order rRow (7-0 -> 0-7)
 	ldi		rTempI, 7
 	sub		rTempI, rRow
 	mov		rRow, rTempI
+
+
+// TEMP CODE REMOVE WHEN OBSELETE
+	// if at pixel(X,Y) (7,7) run terminate program
+	push	rTempI
 	ldi		rTempI, 7
-	sub		rTempI, rColumn
-	mov		rColumn, rTempI
+	cp		rRow, rTempI
+	brne	runTerminateEnd
+	ldi		rTempI, 7
+	cp		rColumn, rTempI
+	brne	runTerminateEnd
+	call	terminate
+	pop		rTempI
+runTerminateEnd:
 
 	// set joystick pixel
 	mov		rArgument0L, rRow
@@ -263,21 +340,138 @@ shiftEnd:
 	ldi		rArgument0L, 2
 	ldi		rArgument1L, 2
 	call	setPixel
-		
-/*
-	// Load the matrix adress into 16 bit register Y (LOW + HIGH)
-	ldi		YH, HIGH(matrix)
-	ldi		YL, LOW(matrix)
-	subi	YL, -7
-	sub		YL, rRow
-	st		Y, rColumnMask
-*/
+
 		.UNDEF rRow
 		.UNDEF rColumn
-		.UNDEF rColumnMask
 
 	call	render
 	jmp		gameLoop
+/* gameLoop */
+
+
+
+/**
+ * fill the board and show it
+ */
+fillBoard:
+		/* rColumnMask */
+		.DEF	rRowMask	= r18
+
+	// Initialize the matrix with a full set
+	ldi		YH, HIGH(matrix)	// Set Y to matrix address
+	ldi		YL, LOW(matrix)
+	ser		rRowMask
+	st		Y+, rRowMask
+	st		Y+, rRowMask
+	st		Y+, rRowMask
+	st		Y+, rRowMask
+	st		Y+, rRowMask
+	st		Y+, rRowMask
+	st		Y+, rRowMask
+	st		Y+, rRowMask
+
+		.UNDEF	rRowMask
+
+fillBoardLoop:
+	// simply show the filled board 'til the end of time
+	call	render
+	jmp		fillBoardLoop
+/* fillBoard end */
+
+
+
+/**
+ * renders the positon of the joystick
+ */
+renderJoystick:
+
+renderJoystickLoop:
+	call clearMatrix
+
+		/* The joystick X/Y axis 8 bit value */
+		.DEF	rJoystickX	= r6
+		.DEF	rJoystickY	= r7
+
+		/* rRow, rColumn */
+		.DEF rRow			= r8
+		.DEF rColumn		= r9
+			
+		/* Joystick input registries */
+		.DEF	rJoystickL	= r4
+		.DEF	rJoystickH	= r5
+
+	// Read X axis
+	ldi		rArgument0L, 1			// 1 represents X
+	call	readJoystick
+	mov		rJoystickL, rReturnL	// Store joystick input value
+	mov		rJoystickH, rReturnH
+
+	// Convert 10 bit value to 8 bit, discarding lowest 2 bits
+	mov		rArgument0L, rJoystickL
+	mov		rArgument0H, rJoystickH
+	call	joystickValueTo8Bit
+	mov		rJoystickX, rReturnL
+
+// TODO Replace temporary code
+	// right shift some more to make the value 3 bits (row 0-7)
+	mov		rTemp, rJoystickX
+	lsr		rTemp
+	lsr		rTemp
+	lsr		rTemp
+	lsr		rTemp
+	lsr		rTemp
+	mov		rColumn, rTemp
+
+	// rverse order rColumn (7-0 -> 0-7)
+	ldi		rTempI, 7
+	sub		rTempI, rColumn
+	mov		rColumn, rTempI
+
+	// Read Y axis
+	ldi		rArgument0L, 0			// 0 represents Y
+	call	readJoystick
+	mov		rJoystickL, rReturnL	// Store joystick input value
+	mov		rJoystickH, rReturnH
+
+	// Convert 10 bit value to 8 bit, discarding lowest 2 bits
+	mov		rArgument0L, rJoystickL
+	mov		rArgument0H, rJoystickH
+	call	joystickValueTo8Bit
+	mov		rJoystickY, rReturnL
+
+		.UNDEF	rJoystickL
+		.UNDEF	rJoystickH
+
+	// Right shift joystick input until it's 3 bits (row 0-7)
+	mov		rTemp, rJoystickY
+	lsr		rTemp
+	lsr		rTemp
+	lsr		rTemp
+	lsr		rTemp
+	lsr		rTemp
+	mov		rRow, rTemp
+
+	// rverse order rRow (7-0 -> 0-7)
+	ldi		rTempI, 7
+	sub		rTempI, rRow
+	mov		rRow, rTempI
+
+	// set joystick pixel
+	mov		rArgument0L, rRow
+	mov		rArgument1L, rColumn
+	call	setPixel
+
+		.UNDEF	rJoystickX
+		.UNDEF	rJoystickY
+		.UNDEF rRow
+		.UNDEF rColumn
+
+	// Show the joystick position
+	call	render
+	jmp		renderJoystickLoop
+/* renderJoystick end */
+
+
 
 /**
  * Renders the matrix to the screen
@@ -364,12 +558,12 @@ delayLoop:
 		.UNDEF	rPortD
 
 	cpi		rRow, 0x80
-	breq	gotologic
+	breq	exitRenderloop
 	lsl		rRow
 	lsl		rTemp
 	jmp		renderloop
 
-gotologic:
+exitRenderloop:
 	// Pop registers used from stack
 	pop		rTemp
 	pop		rTempI
@@ -377,6 +571,9 @@ gotologic:
 		.UNDEF rRow
 
 	ret
+/* render end */
+
+
 
 /**
  * Load x/y value from joystick
@@ -420,6 +617,8 @@ readLoop:
 
 	ret
 /* loadJoystick end */
+
+
 
 /**
  * Converts the 10 bit joystick value to an 8 bit value,
@@ -519,3 +718,84 @@ clearMatrix:
 
 	ret
 /* clearMatrix end */
+
+
+
+/**
+ * Initialize the hardware
+ */
+init:
+	// Initialize stack pointer
+	ldi		rTempI, HIGH(RAMEND)
+	out		SPH, rTempI
+	ldi		rTempI, LOW(RAMEND)
+	out		SPL, rTempI
+
+	// Set row bits as output bits
+	sbi		DDRC, 0	
+	sbi		DDRC, 1	
+	sbi		DDRC, 2	
+	sbi		DDRC, 3	
+	sbi		DDRD, 2	
+	sbi		DDRD, 3	
+	sbi		DDRD, 4	
+	sbi		DDRD, 5	
+
+	// Set column bits as output bits
+	sbi		DDRD, 6	
+	sbi		DDRD, 7	
+	sbi		DDRB, 0	
+	sbi		DDRB, 1	
+	sbi		DDRB, 2	
+	sbi		DDRB, 3	
+	sbi		DDRB, 4	
+	sbi		DDRB, 5
+	
+	// Set X/Y joystick as input bit
+	cbi		DDRC, 4				// PORTC4 aka Y axis
+	cbi		DDRC, 5				// PORTC5 aka X axis
+
+	// Initialize analog / digital converter
+	lds		rTempI, ADMUX
+	sbr		rTempI, 0b01000000
+	cbr		rTempI, 0b10000000
+	sts		ADMUX, rTempI
+	lds		rTempI, ADCSRA
+	sbr		rTempI, 0b10000111
+	sts		ADCSRA, rTempI
+
+	call main					// call main (entry point)
+	
+	call terminate				// if returned from main, terminate
+/* init end */
+
+
+
+/**
+ * terminate the program
+ */
+terminate:
+	// Initialize the matrix with a skull
+	ldi		YH, HIGH(matrix)
+	ldi		YL, LOW(matrix)
+	ldi		rTempI, 0b01111110 
+	st		Y+, rTempI
+	ldi		rTempI, 0b11111111
+	st		Y+, rTempI
+	ldi		rTempI,	0b10011001
+	st		Y+, rTempI
+	ldi		rTempI, 0b11111111
+	st		Y+, rTempI
+	ldi		rTempI,	0b11111111
+	st		Y+, rTempI
+	ldi		rTempI, 0b01111110 
+	st		Y+, rTempI
+	ldi		rTempI, 0b01011010
+	st		Y+, rTempI
+	ldi		rTempI, 0b00000000
+	st		Y+, rTempI
+
+terminateLoop:
+	call render
+	jmp terminateLoop
+/* terminate end */
