@@ -1,12 +1,12 @@
-/*
-	Snake
-
-	// skola assemble setting
-	avrdude -C "C:\WinAVR-20100110\bin\avrdude.conf" -patmega328p -Pcom4 -carduino -b115200 -Uflash:w:Snake.hex 
-
-	// Thism2 assemble setting
-	avrdude -C "E:\Övrigt\WinAVR-20100110\bin\avrdude.conf" -patmega328p -Pcom3 -carduino -b115200 -Uflash:w:Snake.hex 
-
+/**
+ *	Snake
+ *
+ *	// skola assemble setting
+ *	avrdude -C "C:\WinAVR-20100110\bin\avrdude.conf" -patmega328p -Pcom4 -carduino -b115200 -Uflash:w:Snake.hex 
+ *
+ *	// Thism2 assemble setting
+ *	avrdude -C "E:\Övrigt\WinAVR-20100110\bin\avrdude.conf" -p atmega328p -P com3 -c arduino -b 115200 -U flash:w:Snake.hex 
+ *
  */ 
 	
 	// Global Register Definitions
@@ -28,34 +28,151 @@
 	.DEF	rArgument1L	= r22
 	.DEF	rArgument1H	= r23
 
+	//.DEF	rArgument2L	= r20
+	//.DEF	rArgument2H	= r21
+
+	//.DEF	rArgument3L	= r18
+	//.DEF	rArgument3H	= r19
+
 	// Constant definitions
-	.EQU	NUM_COLUMNS	= 8
-	.EQU	NUM_ROWS	= 8
+	.EQU	NUM_COLUMNS		= 8
+	.EQU	NUM_ROWS		= 8
+	.EQU	RESET			= 0x0000
+	.EQU	TIMER0_OVERFLOW	= 0x0020
+	.EQU	TIMER1_OVERFLOW	= 0x001A
+	.EQU	TIMER2_OVERFLOW	= 0x0012
+
+	// Macro definitions
+.MACRO	setPixelRowCol
+	ldi		rArgument0L, @0
+	ldi		rArgument1L, @1
+	call	setPixel
+.ENDMACRO
 
 	// Data Segment
 	.DSEG
 matrix:	
 	.BYTE 8						// LED matrix - 1 bit per "pixel"
-								
+counter:	
+	.BYTE 2						// LED matrix - 1 bit per "pixel"								
 	// Code segment
 	.CSEG
-	.ORG	0x0000
+
+	// reset button interupt
+	.ORG	RESET
 		jmp		init			// Reset vector
 		nop
 
-//	.ORG	0x0020
-//		jmp		isr_timerOF		// Timer 0 overflow vector
-//		nop
+	// timer 0 overflow interupt
+	.ORG	TIMER0_OVERFLOW 
+		jmp		isr_timerOF		// Timer 0 overflow vector
+		nop
 
+	// timer 1 overflow interupt
+	//.ORG	TIMER1_OVERFLOW 
+	//	jmp		isr_timerOF		// Timer 1 overflow vector
+	//	nop
+
+	// timer 2 overflow interupt
+	.ORG	TIMER2_OVERFLOW 
+		jmp		isr_timerOF		// Timer 2 overflow vector
+		nop
+
+	// rest code
 	.ORG	INT_VECTORS_SIZE
+
+/**
+ * isr_timerOF
+ */
+isr_timerOF:
+		/* timer0, timer2 */
+		.DEF	counterL	= r18
+		.DEF	counterH	= r19
+
+	push	counterL
+	push	counterH
+
+	ldi		YH, HIGH(counter)	// Set Y to matrix address
+	ldi		YL, LOW(counter)
+	ld		counterL, Y+
+	ld		counterH, Y+
+
+	inc		counterL
+	adc		counterH, ZERO
+
+	ldi		YH, HIGH(counter)	// Set Y to matrix address
+	ldi		YL, LOW(counter)
+	st		Y+, counterL
+	st		Y+, counterH
+
+	cpi		counterL, 0x00
+	brne	isr_timerOF_end
+	cpi		counterH, 0x01
+	brne	isr_timerOF_end
+
+	call	terminate
+isr_timerOF_end:
+
+	pop		counterL
+	pop		counterH
+
+		.UNDEF	counterL
+		.UNDEF	counterH
+
+	reti
+/* isr_timerOF end */
+
+
 
 /**
  * Entry point
  */
 main:
-		/* The joystick X,Y axis 8 bit value */
-		.DEF	rJoystickX	= r6
-		.DEF	rJoystickY	= r7
+		/* timer0, timer2 */
+		.DEF	counterL	= r18
+		.DEF	counterH	= r19
+
+	ldi		YH, HIGH(counter)	// Set Y to matrix address
+	ldi		YL, LOW(counter)
+	clr		counterL
+	clr		counterH
+	st		Y+, counterL
+	st		Y+, counterH
+
+		.UNDEF	counterL
+		.UNDEF	counterH
+
+	// Timer intialziton
+		/* timer0, timer2 */
+		.DEF	timer0	= r18
+		.DEF	timer2	= r19
+/*
+	// Timer0 prescaling
+	lds		timer0, TCCR0B
+	sbr		timer0, 0b00000101
+	cbr		timer0, 0b00000010
+	sts		TCCR0B, timer0
+*/
+	// Timer2 prescaling
+	lds		timer2, TCCR2B
+	sbr		timer2, 0b00000101
+	cbr		timer2, 0b00000010
+	sts		TCCR2B, timer2
+/*
+	// start Timer0
+	lds		timer0, TIMSK0
+	sbr		timer0, 0b00000001
+	sts		TIMSK0, timer0
+*/
+	// start Timer2
+	lds		timer2, TIMSK2
+	sbr		timer2, 0b00000001
+	sts		TIMSK2, timer2
+
+	sei						// set global interupts
+
+		.UNDEF	timer0
+		.UNDEF	timer2
 
 		/* rColumn, rRow */
 		.DEF	rColumn		= r8
@@ -174,8 +291,6 @@ runProgram77End:
 
 	call	snakeGame			// default will run the snakeGame program
 
-		.UNDEF	rJoystickY
-		.UNDEF	rJoystickX
 		.UNDEF	rRow
 		.UNDEF	rColumn
 
@@ -311,35 +426,17 @@ gameLoop:
 	sub		rTempI, rRow
 	mov		rRow, rTempI
 
-
-// TEMP CODE REMOVE WHEN OBSELETE
-	// if at pixel(X,Y) (7,7) run terminate program
-	push	rTempI
-	ldi		rTempI, 7
-	cp		rRow, rTempI
-	brne	runTerminateEnd
-	ldi		rTempI, 7
-	cp		rColumn, rTempI
-	brne	runTerminateEnd
-	call	terminate
-	pop		rTempI
-runTerminateEnd:
-
 	// set joystick pixel
 	mov		rArgument0L, rRow
 	mov		rArgument1L, rColumn
 	call	setPixel
 
 	// sets the first 3 bits over the diagonal aka (x,y)
-	ldi		rArgument0L, 0
-	ldi		rArgument1L, 0
-	call	setPixel
-	ldi		rArgument0L, 1
-	ldi		rArgument1L, 1
-	call	setPixel
-	ldi		rArgument0L, 2
-	ldi		rArgument1L, 2
-	call	setPixel
+	setPixelRowCol	0, 0
+	setPixelRowCol	1, 1
+	setPixelRowCol	2, 2
+	setPixelRowCol	0, 1
+	setPixelRowCol	0, 2
 
 		.UNDEF rRow
 		.UNDEF rColumn
@@ -393,8 +490,8 @@ renderJoystickLoop:
 		.DEF	rJoystickY	= r7
 
 		/* rRow, rColumn */
-		.DEF rRow			= r8
-		.DEF rColumn		= r9
+		.DEF	rRow		= r8
+		.DEF	rColumn		= r9
 			
 		/* Joystick input registries */
 		.DEF	rJoystickL	= r4
@@ -412,7 +509,6 @@ renderJoystickLoop:
 	call	joystickValueTo8Bit
 	mov		rJoystickX, rReturnL
 
-// TODO Replace temporary code
 	// right shift some more to make the value 3 bits (row 0-7)
 	mov		rTemp, rJoystickX
 	lsr		rTemp
@@ -463,8 +559,8 @@ renderJoystickLoop:
 
 		.UNDEF	rJoystickX
 		.UNDEF	rJoystickY
-		.UNDEF rRow
-		.UNDEF rColumn
+		.UNDEF	rRow
+		.UNDEF	rColumn
 
 	// Show the joystick position
 	call	render
@@ -477,58 +573,38 @@ renderJoystickLoop:
  * Renders the matrix to the screen
  */
 render:
-	// Push registers used onto stack	
-	push	rTemp
-	push	rTempI
-	
-		/* rRow */
-		.DEF rRow		= r18
+		/* rRow, rColumn */
+		.DEF	rRow		= r18
+		.DEF	rColumn		= r19
 
 	ldi		rRow, 1				// Reset row count
 	ldi		YH, HIGH(matrix)	// Set Y to matrix address
 	ldi		YL, LOW(matrix)
 
 renderloop:
-	
-	ld		rTemp, Y+			// Load byte from matrix
-
-	ldi		rTempI, 0
-delayLoop:
-	nop
-	nop
-	nop
-	nop
-	nop
-	subi	rTempI, -1
-	cpi		rTempI, 255
-	brne	delayLoop
+	ld		rColumn, Y+			// Load byte from matrix
 
 		/* Output port temp registries */
-		.DEF	rPortB		= r4
-		.DEF	rPortC		= r5
-		.DEF	rPortD		= r6
-
-	// clear all input
-	out		PORTB, ZERO
-	out		PORTC, ZERO
-	out		PORTD, ZERO
+		.DEF	rPortB		= r20
+		.DEF	rPortC		= r21
+		.DEF	rPortD		= r22
 
 	// set columns from loaded byte
-	bst		rTemp, 7			// column 7
+	bst		rColumn, 7			// column 7
 	bld		rPortD, 6
-	bst		rTemp, 6			// column 6
+	bst		rColumn, 6			// column 6
 	bld		rPortD, 7
-	bst		rTemp, 5			// column 5
+	bst		rColumn, 5			// column 5
 	bld		rPortB, 0
-	bst		rTemp, 4			// column 4
+	bst		rColumn, 4			// column 4
 	bld		rPortB, 1
-	bst		rTemp, 3			// column 3
+	bst		rColumn, 3			// column 3
 	bld		rPortB, 2
-	bst		rTemp, 2			// column 2
+	bst		rColumn, 2			// column 2
 	bld		rPortB, 3
-	bst		rTemp, 1			// column 1
+	bst		rColumn, 1			// column 1
 	bld		rPortB, 4
-	bst		rTemp, 0			// column 0
+	bst		rColumn, 0			// column 0
 	bld		rPortB, 5
 
 	// set row from rRow
@@ -549,9 +625,28 @@ delayLoop:
 	bst		rRow, 7				// column 7
 	bld		rPortD, 5
 
+	// draw row
 	out		PORTB, rPortB
 	out		PORTC, rPortC
 	out		PORTD, rPortD
+		
+		/* rCounter */
+		.DEF	rCounter	= r23
+
+	// show row delay (this is how long the row will be lit up)
+	ldi		rCounter, 0
+delayLoop:
+	nop
+	inc		rCounter
+	cpi		rCounter, 255
+	brne	delayLoop
+
+		.UNDEF	rCounter
+
+	// clear all input
+	out		PORTB, ZERO
+	out		PORTC, ZERO
+	out		PORTD, ZERO
 
 		.UNDEF	rPortB
 		.UNDEF	rPortC
@@ -560,15 +655,11 @@ delayLoop:
 	cpi		rRow, 0x80
 	breq	exitRenderloop
 	lsl		rRow
-	lsl		rTemp
 	jmp		renderloop
-
 exitRenderloop:
-	// Pop registers used from stack
-	pop		rTemp
-	pop		rTempI
-	
-		.UNDEF rRow
+
+		.UNDEF	rRow
+		.UNDEF	rColumn	
 
 	ret
 /* render end */
@@ -627,6 +718,7 @@ readLoop:
  * @return rReturnL - value between 0 255
  */
 joystickValueTo8Bit:
+		/* rHighByte, rLowByte */
 		.DEF	rHighByte	= r18
 		.DEF	rLowByte	= r19
 
@@ -642,7 +734,7 @@ joystickValueTo8Bit:
 	lsl		rHighByte
 	or		rLowByte, rHighByte
 	mov		rReturnL, rLowByte
-	ldi		rReturnH, 0
+	mov		rReturnH, ZERO
 
 		.UNDEF	rHighByte
 		.UNDEF	rLowByte
@@ -658,11 +750,10 @@ joystickValueTo8Bit:
  * @param rArgument1L The column of the pixel
  */
 setPixel:
-		.DEF rRow		= r18
-		.DEF rColumn	= r19
-		.DEF rRowMask	= r20
-
-	push rTemp
+		/* rRow, rColumn, rRowMask */
+		.DEF	rRow		= r18
+		.DEF	rColumn		= r19
+		.DEF	rRowMask	= r20
 
 	// Load the matrix adress into 16 bit register Y (LOW + HIGH)
 	mov		rRow, rArgument0L
@@ -680,15 +771,15 @@ columnShiftEnd:
 
 	ldi		YH, HIGH(matrix)
 	ldi		YL, LOW(matrix)
-	add		YL, rRow
-	ld		rTemp, Y
-	or		rTemp, rRowMask
-	st		Y, rTemp
-	
-	pop rTemp
+	add		YL,	rRow
+	adc		YH, ZERO
+	ld		rRow, Y
+	or		rRow, rRowMask
+	st		Y, rRow
 
-		.UNDEF rRow
-		.UNDEF rColumn
+		.UNDEF	rRow
+		.UNDEF	rColumn
+		.UNDEF	rRowMask
 
 	ret
 /* setPixel end */
@@ -699,22 +790,23 @@ columnShiftEnd:
  * Clear the matrix
  */
 clearMatrix:
-	push	rTemp
+		/* rRowMask */
+		.DEF	rRowMask	= r18
 
 	// clear the entire matrix
 	ldi		YH, HIGH(matrix)
 	ldi		YL, LOW(matrix)
-	clr		rTemp
-	st		Y+, rTemp
-	st		Y+, rTemp
-	st		Y+, rTemp
-	st		Y+, rTemp
-	st		Y+, rTemp
-	st		Y+, rTemp
-	st		Y+, rTemp
-	st		Y+, rTemp
+	clr		rRowMask
+	st		Y+, rRowMask
+	st		Y+, rRowMask
+	st		Y+, rRowMask
+	st		Y+, rRowMask
+	st		Y+, rRowMask
+	st		Y+, rRowMask
+	st		Y+, rRowMask
+	st		Y+, rRowMask
 
-	pop		rTemp
+		.UNDEF	rRowMask
 
 	ret
 /* clearMatrix end */
@@ -725,11 +817,15 @@ clearMatrix:
  * Initialize the hardware
  */
 init:
+		/* rAddressH/L */
+		.DEF	rAddressL	= r18
+		.DEF	rAddressH	= r19
+
 	// Initialize stack pointer
-	ldi		rTempI, HIGH(RAMEND)
-	out		SPH, rTempI
-	ldi		rTempI, LOW(RAMEND)
-	out		SPL, rTempI
+	ldi		rAddressH, HIGH(RAMEND)
+	out		SPH, rAddressH
+	ldi		rAddressL, LOW(RAMEND)
+	out		SPL, rAddressL
 
 	// Set row bits as output bits
 	sbi		DDRC, 0	
@@ -754,19 +850,27 @@ init:
 	// Set X/Y joystick as input bit
 	cbi		DDRC, 4				// PORTC4 aka Y axis
 	cbi		DDRC, 5				// PORTC5 aka X axis
+		
+		.UNDEF	rAddressL
+		.UNDEF	rAddressH
+
+		/* rTempValue */
+		.DEF	rTempValue	= r18
 
 	// Initialize analog / digital converter
-	lds		rTempI, ADMUX
-	sbr		rTempI, 0b01000000
-	cbr		rTempI, 0b10000000
-	sts		ADMUX, rTempI
-	lds		rTempI, ADCSRA
-	sbr		rTempI, 0b10000111
-	sts		ADCSRA, rTempI
+	lds		rTempValue, ADMUX
+	sbr		rTempValue, 0b01000000
+	cbr		rTempValue, 0b10000000
+	sts		ADMUX, rTempValue
 
-	call main					// call main (entry point)
-	
-	call terminate				// if returned from main, terminate
+	lds		rTempValue, ADCSRA
+	sbr		rTempValue, 0b10000111
+	sts		ADCSRA, rTempValue
+
+		.UNDEF	rTempValue
+
+	call	main				// call main (entry point)
+	call	terminate			// if returned from main, terminate
 /* init end */
 
 
@@ -775,27 +879,34 @@ init:
  * terminate the program
  */
 terminate:
+	cli								// no more interupts after termination
+
+		/* rRowMask */
+		.DEF	rRowMask	= r18
+
 	// Initialize the matrix with a skull
 	ldi		YH, HIGH(matrix)
 	ldi		YL, LOW(matrix)
-	ldi		rTempI, 0b01111110 
-	st		Y+, rTempI
-	ldi		rTempI, 0b11111111
-	st		Y+, rTempI
-	ldi		rTempI,	0b10011001
-	st		Y+, rTempI
-	ldi		rTempI, 0b11111111
-	st		Y+, rTempI
-	ldi		rTempI,	0b11111111
-	st		Y+, rTempI
-	ldi		rTempI, 0b01111110 
-	st		Y+, rTempI
-	ldi		rTempI, 0b01011010
-	st		Y+, rTempI
-	ldi		rTempI, 0b00000000
-	st		Y+, rTempI
+	ldi		rRowMask, 0b01111110 
+	st		Y+, rRowMask
+	ldi		rRowMask, 0b11111111
+	st		Y+, rRowMask
+	ldi		rRowMask, 0b10011001
+	st		Y+, rRowMask
+	ldi		rRowMask, 0b11111111
+	st		Y+, rRowMask
+	ldi		rRowMask, 0b11111111
+	st		Y+, rRowMask
+	ldi		rRowMask, 0b01111110 
+	st		Y+, rRowMask
+	ldi		rRowMask, 0b01011010
+	st		Y+, rRowMask
+	ldi		rRowMask, 0b00000000
+	st		Y+, rRowMask
 
+		.UNDEF	rRowMask
+	
 terminateLoop:
-	call render
-	jmp terminateLoop
+	call	render
+	jmp		terminateLoop
 /* terminate end */
