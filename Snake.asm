@@ -37,50 +37,63 @@
 	// Constant definitions
 	.EQU	NUM_COLUMNS		= 8
 	.EQU	NUM_ROWS		= 8
-	.EQU	RESET			= 0x0000
-	.EQU	TIMER0_OVERFLOW	= 0x0020
-	.EQU	TIMER1_OVERFLOW	= 0x001A
-	.EQU	TIMER2_OVERFLOW	= 0x0012
+	.EQU	RESETaddr		= 0x0000
+	.EQU	UP				= 0
+	.EQU	DOWN			= 1
+	.EQU	LEFT			= 2
+	.EQU	RIGHT			= 3
 
 	// Macro definitions
-.MACRO	setPixelRowCol
+.MACRO	setPixelr
+	mov		rArgument0L, @0
+	mov		rArgument1L, @1
+	call	setPixel
+.ENDMACRO
+	
+	// Macro definitions
+.MACRO	setPixeli
 	ldi		rArgument0L, @0
 	ldi		rArgument1L, @1
 	call	setPixel
 .ENDMACRO
 
-	// Data Segment
+
+
+	/**							
+	 * Data Segment
+	 */
 	.DSEG
+
 matrix:	
 	.BYTE 8						// LED matrix - 1 bit per "pixel"
+
 counter:	
-	.BYTE 2						// LED matrix - 1 bit per "pixel"								
-	// Code segment
+	.BYTE 2
+
+
+
+	/**							
+	 * Code segment
+	 */
 	.CSEG
 
 	// reset button interupt
-	.ORG	RESET
+	.ORG	RESETaddr
 		jmp		init			// Reset vector
 		nop
 
-	// timer 0 overflow interupt
-	.ORG	TIMER0_OVERFLOW 
+	// timer 0 overflow interupt ; Timer/Couner0 Overflow
+	.ORG	OVF0addr 
 		jmp		isr_timerOF		// Timer 0 overflow vector
 		nop
 
-	// timer 1 overflow interupt
-	//.ORG	TIMER1_OVERFLOW 
-	//	jmp		isr_timerOF		// Timer 1 overflow vector
-	//	nop
-
 	// timer 2 overflow interupt
-	.ORG	TIMER2_OVERFLOW 
+	.ORG	OVF2addr 
 		jmp		isr_timerOF		// Timer 2 overflow vector
 		nop
 
 	// rest code
 	.ORG	INT_VECTORS_SIZE
-
 /**
  * isr_timerOF
  */
@@ -110,7 +123,7 @@ isr_timerOF:
 	cpi		counterH, 0x01
 	brne	isr_timerOF_end
 
-	call	terminate
+	//call	terminate
 isr_timerOF_end:
 
 	pop		counterL
@@ -169,8 +182,6 @@ main:
 	sbr		timer2, 0b00000001
 	sts		TIMSK2, timer2
 
-	sei						// set global interupts
-
 		.UNDEF	timer0
 		.UNDEF	timer2
 
@@ -179,8 +190,8 @@ main:
 		.DEF	rRow		= r9
 
 		/* Joystick input registries */
-		.DEF	rJoystickL	= r4
-		.DEF	rJoystickH	= r5
+		.DEF	rJoystickL	= r18
+		.DEF	rJoystickH	= r19
 
 	// Read X axis
 	ldi		rArgument0L, 1			// 1 represents X
@@ -189,10 +200,13 @@ main:
 	mov		rJoystickH, rReturnH
 
 	// Convert 10 bit value to 8 bit, discarding lowest 2 bits
-	mov		rArgument0L, rReturnL
-	mov		rArgument0H, rReturnH
+	mov		rArgument0L, rJoystickL
+	mov		rArgument0H, rJoystickH
 	call	joystickValueTo8Bit
 	mov		rTempI, rReturnL
+
+		.UNDEF	rJoystickL
+		.UNDEF	rJoystickH
 
 // TODO Replace temporary code
 	// right shift some more to make the value 3 bits (row 0-7)
@@ -207,6 +221,10 @@ main:
 	ldi		rTempI, 7
 	sub		rTempI, rColumn
 	mov		rColumn, rTempI
+
+		/* Joystick input registries */
+		.DEF	rJoystickL	= r18
+		.DEF	rJoystickH	= r19
 
 	// Read Y axis
 	ldi		rArgument0L, 0
@@ -345,19 +363,28 @@ snakeGame:
 
 gameLoop:
 	call clearMatrix
+
+		/* The joystick X axis 8 bit value */
+		.DEF	rJoystickX	= r6
+
+		/* The joystick Y axis 8 bit value */
+		.DEF	rJoystickY	= r7
 	
 		/* Joystick input registries */
 		.DEF	rJoystickL	= r4
 		.DEF	rJoystickH	= r5
+
+		/* rColumn */
+		.DEF rColumn		= r8
+
+		/* rRow */
+		.DEF rRow			= r9
 
 	// Read X axis
 	ldi		rArgument0L, 1			// 1 represents X
 	call	readJoystick
 	mov		rJoystickL, rReturnL	// Store joystick input value
 	mov		rJoystickH, rReturnH
-
-		/* The joystick X axis 8 bit value */
-		.DEF	rJoystickX	= r6
 
 	// Convert 10 bit value to 8 bit, discarding lowest 2 bits
 	mov		rArgument0L, rJoystickL
@@ -374,12 +401,6 @@ gameLoop:
 	lsr		rTemp
 	lsr		rTemp
 	mov		rTempI, rTemp
-
-		.UNDEF	rJoystickX
-
-		/* rColumn */
-		.DEF rColumn		= r6
-
 	mov		rColumn, rTempI
 
 	// rverse order rColumn (7-0 -> 0-7)
@@ -393,9 +414,6 @@ gameLoop:
 	mov		rJoystickL, rReturnL	// Store joystick input value
 	mov		rJoystickH, rReturnH
 
-		/* The joystick Y axis 8 bit value */
-		.DEF	rJoystickY	= r7
-
 	// Convert 10 bit value to 8 bit, discarding lowest 2 bits
 	mov		rArgument0L, rReturnL
 	mov		rArgument0H, rReturnH
@@ -407,18 +425,11 @@ gameLoop:
 
 	// Right shift joystick input until it's 3 bits (row 0-7)
 	mov		rTemp, rJoystickY
-
-		.UNDEF	rJoystickY
-
 	lsr		rTemp
 	lsr		rTemp
 	lsr		rTemp
 	lsr		rTemp
 	lsr		rTemp
-
-		/* rRow */
-		.DEF rRow		= r18
-
 	mov		rRow, rTemp
 
 	// rverse order rRow (7-0 -> 0-7)
@@ -426,26 +437,94 @@ gameLoop:
 	sub		rTempI, rRow
 	mov		rRow, rTempI
 
+		/* rDirection */
+		.DEF rDirection			= r18
+		.DEF rDirection2		= r19
+
+	mov		rArgument0L, rJoystickX
+	mov		rArgument1L, rJoystickY
+	call	joystickValuesToDirection
+	mov		rDirection, rReturnL
+	mov		rDirection2, rReturnH
+	setPixelr	rDirection2, rDirection
+
+		.UNDEF	rDirection
+		.UNDEF	rJoystickY
+		.UNDEF	rJoystickX
+		.UNDEF	rDirection2
+
 	// set joystick pixel
-	mov		rArgument0L, rRow
-	mov		rArgument1L, rColumn
-	call	setPixel
+	setPixelr	rRow, rColumn
 
 	// sets the first 3 bits over the diagonal aka (x,y)
-	setPixelRowCol	0, 0
-	setPixelRowCol	1, 1
-	setPixelRowCol	2, 2
-	setPixelRowCol	0, 1
-	setPixelRowCol	0, 2
+	//setPixeli	0, 0
+	//setPixeli	1, 1
+	//setPixeli	2, 2
+	// and sets some more pixels
+	//setPixeli	0, 1
+	//setPixeli	0, 2
 
-		.UNDEF rRow
-		.UNDEF rColumn
+		.UNDEF	rRow
+		.UNDEF	rColumn
 
 	call	render
 	jmp		gameLoop
 /* gameLoop */
 
+/**
+ * return the direction  depending on the joystick values
+ * @param rArgument0L X (0 - 255)
+ * @param rArgument1L Y (0 - 255)
+ * @return rReturnL	returns the joystick direction (UP, DOWN, LEFT, RIGHT)
+ */
+joystickValuesToDirection:
+		/* rDirection */
+		.DEF	rDirectionX		= r20
+		.DEF	rDirectionY		= r21
 
+		/* The joystick X/Y axis 8 bit value */
+		.DEF	rJoystickX		= r18
+		.DEF	rJoystickY		= r19
+
+	mov		rJoystickX, rArgument0L
+	mov		rJoystickY, rArgument1L
+
+	//cp		rJoystickX, rJoystickY
+	//brlo	compareX
+	//jmp		compareX
+	jmp		compareY
+
+compareY:
+	cpi		rJoystickY, 128
+	brlo	compareYUp
+compareYDown:
+	ldi		rDirectionY, 0
+	jmp		compareX
+compareYUp:
+	ldi		rDirectionY, 7
+	jmp		compareX
+
+compareX:
+	cpi		rJoystickX, 128
+	brlo	compareXRight
+compareXLeft:
+	ldi		rDirectionX, 0
+	jmp		compareXYEnd
+compareXRight:
+	ldi		rDirectionX, 7
+	jmp		compareXYEnd
+compareXYEnd:
+
+	mov		rReturnL, rDirectionX
+	mov		rReturnH, rDirectionY
+	ret
+
+		.UNDEF	rJoystickX
+		.UNDEF	rJoystickY
+		.UNDEF	rDirectionX
+		.UNDEF	rDirectionY
+
+/* joystickValuesToDirection */
 
 /**
  * fill the board and show it
@@ -553,9 +632,7 @@ renderJoystickLoop:
 	mov		rRow, rTempI
 
 	// set joystick pixel
-	mov		rArgument0L, rRow
-	mov		rArgument1L, rColumn
-	call	setPixel
+	setPixelr rRow, rColumn
 
 		.UNDEF	rJoystickX
 		.UNDEF	rJoystickY
@@ -573,6 +650,7 @@ renderJoystickLoop:
  * Renders the matrix to the screen
  */
 render:
+	cli							// 
 		/* rRow, rColumn */
 		.DEF	rRow		= r18
 		.DEF	rColumn		= r19
@@ -661,6 +739,7 @@ exitRenderloop:
 		.UNDEF	rRow
 		.UNDEF	rColumn	
 
+	sei							// 
 	ret
 /* render end */
 
