@@ -8,10 +8,10 @@
  *	avrdude -C "E:\Övrigt\WinAVR-20100110\bin\avrdude.conf" -p atmega328p -P com3 -c arduino -b 115200 -U flash:w:Snake.hex 
  *
  */ 
-	
+
 	// Global Register Definitions
-	.DEF	TMP			= r0
-	.DEF	ZERO		= r1
+	.DEF	rMulResL	= r0
+	.DEF	rMulResH	= r1
 
 	.DEF	rTemp		= r2
 	.DEF	rTemp2		= r3
@@ -36,83 +36,161 @@
 
 	// Constant definitions
 	.EQU	RESETaddr			= 0x0000
-	//ledjoj
-	.EQU	NUM_COLUMNS			= 8
-	.EQU	NUM_ROWS			= 8
-	// snake
-	.EQU	SNAKE_MAX_LENGTH	= 64
-	// joystick
+
+	// Joystick
 	.EQU	JOYSTICK_X_AXIS		= 1
 	.EQU	JOYSTICK_Y_AXIS		= 0
-	.EQU	JOYSTICK_THRESHOLD	= 128 - 16
-	.EQU	JOYSTICK_UP			= 0
-	.EQU	JOYSTICK_DOWN		= 1
-	.EQU	JOYSTICK_LEFT		= 2
-	.EQU	JOYSTICK_RIGHT		= 3
-	// Macro definitions
 
+	.EQU	JOYSTICK_THRESHOLD	= 128 - 16
+	.EQU	JOYSTICK_NONE		= 0
+	.EQU	JOYSTICK_UP			= 1
+	.EQU	JOYSTICK_DOWN		= 2
+	.EQU	JOYSTICK_LEFT		= 3
+	.EQU	JOYSTICK_RIGHT		= 4
+
+	// Timer
+	.EQU	TIMER2_PRE_1024		= ((1 << CS22) | (1 << CS21) | (1 << CS20))
+
+	// Ledjoy
+	.EQU	NUM_COLUMNS			= 8
+	.EQU	NUM_ROWS			= 8
+
+	// Snake
+	.EQU	SNAKE_MAX_LENGTH	= 64
+/*	.EQU	SNAKE_SPEED_0		= 4096
+	.EQU	SNAKE_SPEED_1		= 2048
+	.EQU	SNAKE_SPEED_2		= 1024*/
+
+	// Timer test
+	// static twsted time			timer value 4096 = 67 seconds
+
+	.EQU	TIMER_TEST_TARGET_TIME = 512			// 0.5
+
+
+	// Macro definitions
+	
 	// logical shift left
-	.MACRO	lsl2
+	.MACRO	lsl2				// 2x left
 		lsl		@0
 		lsl		@0
 	.ENDMACRO
-	.MACRO	lsl4
+	.MACRO	lsl3				// 3x left
+		lsl2	@0
+		lsl		@0
+	.ENDMACRO
+	.MACRO	lsl4				// 4x left
 		lsl2	@0
 		lsl2	@0
 	.ENDMACRO
-	.MACRO	lsl8
+	.MACRO	lsl5				// 5x left
 		lsl4	@0
-		lsl4	@0
+		lsl 	@0
 	.ENDMACRO
-	// logical shift right
-	.MACRO	lsr2
+	.MACRO	lsl6				// 6x left
+		lsl4	@0
+		lsl2	@0
+	.ENDMACRO
+	.MACRO	lsl7				// 7x left
+		lsl4	@0
+		lsl3	@0
+	.ENDMACRO
+	
+	// logical shift right					
+	.MACRO	lsr2				// 2x right
 		lsr		@0
 		lsr		@0
 	.ENDMACRO
-	.MACRO	lsr4
+	.MACRO	lsr3				// 3x right
+		lsr2	@0
+		lsr 	@0
+	.ENDMACRO
+	.MACRO	lsr4				// 4x right
 		lsr2	@0
 		lsr2	@0
 	.ENDMACRO
-	.MACRO	lsr8
+	.MACRO	lsr5				// 5x right
 		lsr4	@0
-		lsr4	@0
+		lsr 	@0
 	.ENDMACRO
-	// setPixel subroutine call
-	.MACRO	setPixelr
+	.MACRO	lsr6				// 6x right
+		lsr4	@0
+		lsr2	@0
+	.ENDMACRO
+	.MACRO	lsr7				// 7x right
+		lsr4	@0
+		lsr3	@0
+	.ENDMACRO
+	
+	.MACRO	setPixelr			// SetPixel subroutine call from register
 		mov		rArgument0L, @0
 		mov		rArgument1L, @1
 		call	setPixel
 	.ENDMACRO
-	.MACRO	setPixeli
+
+	.MACRO	setPixeli			// SetPixel subroutine call from constant
 		ldi		rArgument0L, @0
 		ldi		rArgument1L, @1
 		call	setPixel
 	.ENDMACRO
-	// branch if equal
-	.MACRO ifeqi
+	
+	.MACRO beqi				// branch if equal
 		cpi		@0, @1
 		breq	@2
 	.ENDMACRO
-	.MACRO ifeq
+	.MACRO beq
 		cp		@0, @1
 		breq	@2
 	.ENDMACRO
-	// branch if not equal
-	.MACRO ifnei
+	
+	.MACRO bnei				// branch if not equal
 		cpi		@0, @1
 		brne	@2
 	.ENDMACRO
-	.MACRO ifne
+	.MACRO bne
 		cp		@0, @1
 		brne	@2
 	.ENDMACRO
 
+	/**
+	 * Add constant to a 16 bit composite virtual register outside of X, Y and Z
+	 * param @0 - Low register
+	 * param @1 - High register
+	 * param @2 - 16 bit constant
+	 */
+	.MACRO addiw 
+		subi	@0, LOW(-@2)
+		sbci	@1, HIGH(-@2)
+	.ENDMACRO
+
+	/**
+	 * Increment a timer data structure. 
+	 * @param @0 - The label to a timer
+	 */
+	.MACRO incrementTimer
+		// load timer value
+		ldi		YH, HIGH(@0)
+		ldi		YL, LOW(@0)
+		ldd		rTimerValueL, Y + TimerCurrentTimeL
+		ldd		rTimerValueH, Y + TimerCurrentTimeH
+
+		// increase time by 1
+		addiw rTimerValueL, rTimerValueH, 1
+
+		// store time
+		ldi		YH, HIGH(@0)	// Set Y to matrix address
+		ldi		YL, LOW(@0)
+		st		Y+, rTimerValueL
+		st		Y+, rTimerValueH
+	.ENDMACRO
+
 	// timer data structure
-	.EQU	TimerSize			= 4
+	.EQU	TimerSize			= 6
 	.EQU	TimerCurrentTimeL	= 0x00
 	.EQU	TimerCurrentTimeH	= 0x01
 	.EQU	TimerTargetTimeL	= 0x02
 	.EQU	TimerTargetTimeH	= 0x03
+	.EQU	TimerScalarL		= 0x04
+	.EQU	TimerScalarH		= 0x05
 
 	// Vector2 data structure
 	.EQU	Vector2Size			= 2
@@ -124,21 +202,17 @@
 	 */
 	.DSEG
 
-matrix:	
-	.BYTE	NUM_ROWS					// LED matrix - 1 bit per "pixel"
-
-renderTimer:	
-	.BYTE	TimerSize
-
-snakeVector:	
-	.BYTE	SNAKE_MAX_LENGTH * Vector2Size
+matrix:			.BYTE	NUM_ROWS					// LED matrix - 1 bit per "pixel"
+renderTimer:	.BYTE	TimerSize
+updateTimer:	.BYTE	TimerSize
+snakeVector:	.BYTE	SNAKE_MAX_LENGTH * Vector2Size
 
 	/**							
 	 * Code segment
 	 */
 	.CSEG
 
-	// reset button interupt
+	// Initialization / reset interupt
 	.ORG	RESETaddr
 		jmp		init			// Reset vector
 		nop
@@ -156,8 +230,9 @@ snakeVector:
 
 	// rest code
 	.ORG	INT_VECTORS_SIZE
+
 /**
- * timer0OverflowInterupt
+ * Handle overflow interupts from timer 0
  */
 timer0OverflowInterupt:
 
@@ -167,10 +242,10 @@ timer0OverflowInterupt:
 
 
 /**
- * timer2OverflowInterupt
+ * Handle overflow interupts from timer 1
  */
 timer2OverflowInterupt:
-		/* temporary registers */
+	
 		.DEF	rStatus		= r18
 
 	// save status
@@ -180,49 +255,36 @@ timer2OverflowInterupt:
 		
 		.UNDEF	rStatus
 
-		/* temporay registers */
-		.DEF	rCounterL	= r18
-		.DEF	rCounterH	= r19
+		/* The timercounter value  */
+		.DEF	rTimerValueL	= r18
+		.DEF	rTimerValueH	= r19
+		.DEF	rTimerTargetL	= r20
+		.DEF	rTimerTargetH	= r21
 
-	// pre stack stuff
-	push	rCounterL
-	push	rCounterH
+	// Push used registers
+	push	rTimerValueL
+	push	rTimerValueH
+	push	rTimerTargetL
+	push	rTimerTargetH
 	push	YL
 	push	YH
-
-	// load time
-	ldi		YH, HIGH(renderTimer)
-	ldi		YL, LOW(renderTimer)
-	ld		rCounterL, Y+
-	ld		rCounterH, Y+
 	
-	// increase time by 1
-	subi	rCounterL, LOW(-1)
-	sbci	rCounterH, HIGH(-1)
-
-	// reset if time is at targer time
-	ifnei	rCounterL, 0xFF, resetTimeEnd
-	ifnei	rCounterH, 0x03, resetTimeEnd
-	clr		rCounterL
-	clr		rCounterH
-resetTimeEnd:
-
-	// store time
-	ldi		YH, HIGH(renderTimer)	// Set Y to matrix address
-	ldi		YL, LOW(renderTimer)
-	st		Y+, rCounterL
-	st		Y+, rCounterH
+	incrementTimer renderTimer
+	incrementTimer updateTimer
 
 	// post stack stuff
 	pop		YH
 	pop		YL
-	pop		rCounterH
-	pop		rCounterL					
+	pop		rTimerTargetH
+	pop		rTimerTargetL
+	pop		rTimerValueH
+	pop		rTimerValueL				
 
-		.UNDEF	rCounterL
-		.UNDEF	rCounterH
+		.UNDEF	rTimerValueL
+		.UNDEF	rTimerValueH
+		.UNDEF	rTimerTargetL
+		.UNDEF	rTimerTargetH
 
-		/* temporary registers */
 		.DEF	rStatus		= r18
 
 	// restore status
@@ -236,172 +298,55 @@ resetTimeEnd:
 /* timer2OverflowInterupt end */
 
 
-
 /**
- * Entry point
- */
-main:
-		/* rColumn, rRow */
-		.DEF	rColumn		= r8
-		.DEF	rRow		= r9
-
-	// stack
-	push	rColumn
-	push	rRow
-	
-mainLoop:
-	call	clearMatrix
-
-		/* Joystick input registries */
-		.DEF	rJoystickL	= r18
-		.DEF	rJoystickH	= r19
-
-	// Read X axis
-	ldi		rArgument0L, JOYSTICK_X_AXIS	// 1 represents X
-	call	readJoystick
-	mov		rJoystickL, rReturnL			// Store joystick input value
-	mov		rJoystickH, rReturnH
-
-	// Convert 10 bit value to 8 bit, discarding lowest 2 bits
-	mov		rArgument0L, rJoystickL
-	mov		rArgument0H, rJoystickH
-	call	joystickValueTo8Bit
-	mov		rColumn, rReturnL
-
-		.UNDEF	rJoystickL
-		.UNDEF	rJoystickH
-
-	// right shift some more to make the value 3 bits (row 0-7)
-	lsr4	rColumn
-	lsr		rColumn
-
-	// rverse order rColumn (7-0 -> 0-7)
-	ldi		rTempI, 7
-	sub		rTempI, rColumn
-	mov		rColumn, rTempI
-
-		/* Joystick input registries */
-		.DEF	rJoystickL	= r18
-		.DEF	rJoystickH	= r19
-
-	// Read Y axis
-	ldi		rArgument0L, JOYSTICK_Y_AXIS
-	call	readJoystick
-	mov		rJoystickL, rReturnL	// Store joystick input value
-	mov		rJoystickH, rReturnH
-
-	// Convert 10 bit value to 8 bit, discarding lowest 2 bits
-	mov		rArgument0L, rJoystickL
-	mov		rArgument0H, rJoystickH
-	call	joystickValueTo8Bit
-	mov		rRow, rReturnL
-
-		.UNDEF	rJoystickL
-		.UNDEF	rJoystickH
-
-	// Right shift joystick input until it's 3 bits (row 0-7)
-	lsr4	rRow
-	lsr		rRow
-
-	// rverse order rRow (7-0 -> 0-7)
-	ldi		rTempI, 7
-	sub		rTempI, rRow
-	mov		rRow, rTempI
-
-	setPixelr	rRow, rColumn
-
-		/* Joystick input registries */
-		.DEF	rRowi		= r16
-		.DEF	rColumni	= r17
-
-	mov		rRowi,		rRow
-	mov		rColumni,	rColumn
-
-	// if at pixel(X,Y) (0,0) run timerTest program
-	setPixeli	0, 0
-	ifnei	rRowi, 0, runProgram00End
-	ifnei	rColumni, 0, runProgram00End
-	call	timerTest
-	jmp		mainLoopEnd
-runProgram00End:
-
-	// if at pixel(X,Y) (0,7) run renderJoystick program
-	setPixeli	0, 7
-	ifnei	rRowi, 0, runProgram07End
-	ifnei	rColumni, 7, runProgram07End
-	call	renderJoystick
-	jmp		mainLoopEnd
-runProgram07End:
-
-	// if at pixel(X,Y) (7,0) run snakeGame program
-	setPixeli	7, 0
-	ifnei	rRowi, 7, runProgram70End
-	ifnei	rColumni, 0, runProgram70End
-	call	snakeGame
-	jmp		mainLoopEnd
-runProgram70End:
-
-	// if at pixel(X,Y) (7,7) run fillBoard program
-	setPixeli	7, 7
-	ifnei	rRowi, 7, runProgram77End
-	ifnei	rColumni, 7, runProgram77End
-	call	fillBoard
-	jmp		mainLoopEnd
-runProgram77End:
-
-		.UNDEF	rRowi
-		.UNDEF	rColumni
-
-	call	render
-	jmp		mainLoop
-mainLoopEnd:
-
-	// stack
-	pop		rRow
-	pop		rColumn
-
-		.UNDEF	rRow
-		.UNDEF	rColumn
-
-	ret							// if program returned, exit main
-/* main end */
-
-
-
-/**
- * start runing the timer test
+ * Start runing the timer test
  */
 timerTest:
-		/* rCounterL, rCounterH */
-		.DEF	rCounterL	= r18
-		.DEF	rCounterH	= r19
+	
+		.DEF	rTimerValueL	= r18
+		.DEF	rTimerValueH	= r19
+		.DEF	rTimerTargetL	= r20
+		.DEF	rTimerTargetH	= r21
+	
+	// Set target time
+	ldi rTimerTargetH, HIGH(TIMER_TEST_TARGET_TIME)
+	ldi rTimerTargetL, LOW(TIMER_TEST_TARGET_TIME)
+
+	// Reset current time
+	clr		rTimerValueL
+	clr		rTimerValueH
 
 	// reset renderTimer
 	ldi		YH, HIGH(renderTimer)	// Set Y to matrix address
 	ldi		YL, LOW(renderTimer)
-	clr		rCounterL
-	clr		rCounterH
-	st		Y+, rCounterL
-	st		Y+, rCounterH
+	std		Y + TimerCurrentTimeL, rTimerValueL
+	std		Y + TimerCurrentTimeH, rTimerValueH
+	std		Y + TimerTargetTimeL, rTimerTargetL
+	std		Y + TimerTargetTimeH, rTimerTargetH
 
-		.UNDEF	rCounterL
-		.UNDEF	rCounterH
+	ldi rTimerTargetH, HIGH(250)
+	ldi rTimerTargetL, LOW(250)
 
-	// Timer intialziton
-		/* timer0, timer2 */
-		.DEF	timerValue	= r18
+	// reset updateTimer
+	ldi		YH, HIGH(updateTimer)	// Set Y to matrix address
+	ldi		YL, LOW(updateTimer)
+	std		Y + TimerCurrentTimeL, rTimerValueL
+	std		Y + TimerCurrentTimeH, rTimerValueH
+	std		Y + TimerTargetTimeL, rTimerTargetL
+	std		Y + TimerTargetTimeH, rTimerTargetH
+
+		.UNDEF	rTimerValueL
+		.UNDEF	rTimerValueH
+		.UNDEF	rTimerTargetL
+		.UNDEF	rTimerTargetH
+
+	// Timer initializiton
+	ldi rArgument0L, TIMER2_PRE_1024
+	call initializeTimer2
 
 
-
-	// Initalize Timer0
-	lds		timerValue, TCCR0B					// timer prescaling
-	sbr		timerValue, ((1 << CS02) | (0 << CS01) | (1 << CS00))
-	cbr		timerValue, (1 << CS01)
-	sts		TCCR0B, timerValue
-	lds		timerValue, TIMSK0					// start timer
-	sbr		timerValue, (1 << TOIE0)
-	sts		TIMSK0, timerValue
-
+	// timer mystery debug code
+	/*
 	//					TCCR0A -> TCCR0A_0 == DDRB -> DDB0
 	//					TCCR0A -> TCCR0A_1 == DDRB -> DDB1
 	//					TCCR0A -> TCCR0A_2 == DDRB -> DDB2
@@ -414,35 +359,6 @@ timerTest:
 	//					OCR0A -> OCR0A_3 == DDRC -> DDC3
 	//					TCNT0 -> TCNT0_4 == DDRC -> DDC4 (joy y)
 	//					TCNT0 -> TCNT0_5 == DDRC -> DDC5 (joy x)
-
-	// Initalize Timer2
-	lds		timerValue, TCCR2B					// timer prescaling
-	sbr		timerValue, ((1 << CS22) | (1 << CS21) | (1 << CS20))
-	cbr		timerValue,	((0 << CS22) | (0 << CS21) | (0 << CS20))
-	sts		TCCR2B, timerValue
-	lds		timerValue, TIMSK2					// start timer
-	sbr		timerValue, (1 << TOIE2)
-	sts		TIMSK2, timerValue
-
-	//sei											// start interuptions
-		.UNDEF	timerValue
-
-	//call	fillBoard
-timerTestLoop:
-	call	clearMatrix
-
-		/* rCounterL, rCounterH */
-		.DEF	rCounterL	= r18
-		.DEF	rCounterH	= r19
-
-	ldi		YH, HIGH(renderTimer)	// Set Y to matrix address
-	ldi		YL, LOW(renderTimer)
-	//ld		rCounterL, Y+ 
-	//ld		rCounterH, Y+
-
-	ldi		YH, HIGH(matrix)	// Set Y to matrix address
-	ldi		YL, LOW(matrix)
-
 	lds		rCounterL, TIMSK0
 	lds		rCounterH, TCCR0A
 	st		Y+, rCounterL
@@ -459,9 +375,110 @@ timerTestLoop:
 	lds		rCounterH, OCR2A
 	st		Y+, rCounterL
 	st		Y+, rCounterH
+	*/
+
+	sei
+timerTestLoop:
+	call	clearMatrix
+
+		/* rCounterL, rCounterH */
+		.DEF	rCounterL	= r18
+		.DEF	rCounterH	= r19
+
+	ldi		YH, HIGH(renderTimer)	// Set Y to matrix address
+	ldi		YL, LOW(renderTimer)
+	ld		rCounterL, Y+ 
+	ld		rCounterH, Y+
+
+	ldi		YH, HIGH(matrix)	// Set Y to matrix address
+	ldi		YL, LOW(matrix)
+	st		Y+, rCounterL
+	st		Y+, rCounterH
+	
+	ldi		YH, HIGH(updateTimer)	// Set Y to matrix address
+	ldi		YL, LOW(updateTimer)
+	ld		rCounterL, Y+ 
+	ld		rCounterH, Y+
+	
+	ldi		YH, HIGH(matrix)	// Set Y to matrix address
+	ldi		YL, LOW(matrix)
+	addiw	YL, YH, 2
+	st		Y+, rCounterL
+	st		Y+, rCounterH
 
 		.UNDEF	rCounterL
 		.UNDEF	rCounterH
+
+
+		/* The timercounter value  */
+		.DEF	rTimerValueL	= r18
+		.DEF	rTimerValueH	= r19
+		.DEF	rTimerTargetL	= r20
+		.DEF	rTimerTargetH	= r21
+
+	// load timer value
+	ldi		YH, HIGH(renderTimer)
+	ldi		YL, LOW(renderTimer)
+	ldd		rTimerValueL, Y + TimerCurrentTimeL
+	ldd		rTimerValueH, Y + TimerCurrentTimeH
+
+	// Load target time
+	ldd		rTimerTargetL, Y + TimerTargetTimeL
+	ldd		rTimerTargetH, Y + TimerTargetTimeH
+
+	// If time is at target time, skip reset
+	//bne		rTimerValueL, rTimerTargetL, resetTimeEnd
+	cp		rTimerValueL, rTimerTargetL
+
+	//brlo	resetTimeEnd
+	//bne		rTimerValueH, rTimerTargetH, resetTimeEnd
+	cpc		rTimerValueH, rTimerTargetH
+	brlo	resetTimeEnd1
+	// Reset 
+	clr		rTimerValueL
+	clr		rTimerValueH
+	jmp		ughosierughose
+resetTimeEnd1:
+
+	// store time
+	ldi		YH, HIGH(renderTimer)	// Set Y to matrix address
+	ldi		YL, LOW(renderTimer)
+	std		Y + TimerCurrentTimeL, rTimerValueL
+	std		Y + TimerCurrentTimeH, rTimerValueH
+
+	// load timer value
+	ldi		YH, HIGH(updateTimer)
+	ldi		YL, LOW(updateTimer)
+	ldd		rTimerValueL, Y + TimerCurrentTimeL
+	ldd		rTimerValueH, Y + TimerCurrentTimeH
+
+	// Load target time
+	ldd		rTimerTargetL, Y + TimerTargetTimeL
+	ldd		rTimerTargetH, Y + TimerTargetTimeH
+
+	// If time is at target time, skip reset
+	//bne		rTimerValueL, rTimerTargetL, resetTimeEnd
+	cp		rTimerValueL, rTimerTargetL
+
+	//brlo	resetTimeEnd
+	//bne		rTimerValueH, rTimerTargetH, resetTimeEnd
+	cpc		rTimerValueH, rTimerTargetH
+	brlo	resetTimeEnd2
+	// Reset 
+	clr		rTimerValueL
+	clr		rTimerValueH
+resetTimeEnd2:
+
+	// store time
+	ldi		YH, HIGH(updateTimer)	// Set Y to matrix address
+	ldi		YL, LOW(updateTimer)
+	std		Y + TimerCurrentTimeL, rTimerValueL
+	std		Y + TimerCurrentTimeH, rTimerValueH
+
+		.UNDEF	rTimerValueL
+		.UNDEF	rTimerValueH
+		.UNDEF	rTimerTargetL
+		.UNDEF	rTimerTargetH
 
 	call	render
 	jmp		timerTestLoop
@@ -471,7 +488,8 @@ timerTestLoop:
 
 
 /**
- * start runing the snake game
+ * Program: Snake
+ * Start runing the snake game
  */
 snakeGame:
 	// Initialize the matrix with a smiley
@@ -548,11 +566,7 @@ gameLoop:
 // TODO Replace temporary code
 	// right shift some more to make the value 3 bits (row 0-7)
 	mov		rTemp, rJoystickX
-	lsr		rTemp
-	lsr		rTemp
-	lsr		rTemp
-	lsr		rTemp
-	lsr		rTemp
+	lsr5	rTemp
 	mov		rTempI, rTemp
 	mov		rColumn, rTempI
 
@@ -578,11 +592,7 @@ gameLoop:
 
 	// Right shift joystick input until it's 3 bits (row 0-7)
 	mov		rTemp, rJoystickY
-	lsr		rTemp
-	lsr		rTemp
-	lsr		rTemp
-	lsr		rTemp
-	lsr		rTemp
+	lsr5	rTemp
 	mov		rRow, rTemp
 
 	// rverse order rRow (7-0 -> 0-7)
@@ -617,61 +627,17 @@ gameLoop:
 /* gameLoop */
 
 /**
- * return the direction  depending on the joystick values
- * @param rArgument0L X (0 - 255)
- * @param rArgument1L Y (0 - 255)
- * @return rReturnL	returns the joystick direction (UP, DOWN, LEFT, RIGHT)
+ * 
+ * Fill the board and show it
  */
-joystickValuesToDirection:
-		/* rDirection */
-		.DEF	rDirectionX		= r20
-		.DEF	rDirectionY		= r21
+fillBoard:
+	call setMatrix
 
-		/* The joystick X/Y axis 8 bit value */
-		.DEF	rJoystickX		= r18
-		.DEF	rJoystickY		= r19
-
-	mov		rJoystickX, rArgument0L
-	mov		rJoystickY, rArgument1L
-
-	ldi		rDirectionY, 3
-	ldi		rDirectionX, 3
-
-compareUp:
-	cpi		rJoystickY, 128 + JOYSTICK_THRESHOLD - 1
-	brlo	compareUpEnd
-	ldi		rDirectionY, 0
-compareUpEnd:
-	
-compareDown:
-	cpi		rJoystickY, 128 - JOYSTICK_THRESHOLD - 1
-	brsh	compareDownEnd
-	ldi		rDirectionY, 7
-compareDownEnd:
-
-compareLeft:
-	cpi		rJoystickX, 128 + JOYSTICK_THRESHOLD - 1
-	brlo	compareLeftEnd
-	ldi		rDirectionX, 0
-compareLeftEnd:
-
-compareRight:
-	cpi		rJoystickX, 128 - JOYSTICK_THRESHOLD - 1
-	brsh	compareRightEnd
-	ldi		rDirectionX, 7
-compareRightEnd:
-
-	mov		rReturnL, rDirectionX
-	mov		rReturnH, rDirectionY
-
-		.UNDEF	rJoystickX
-		.UNDEF	rJoystickY
-		.UNDEF	rDirectionX
-		.UNDEF	rDirectionY
-
-	ret
-/* joystickValuesToDirection */
-
+fillBoardLoop:
+	// Simply show the filled board 'til the end of time
+	call	render
+	jmp		fillBoardLoop
+/* fillBoard end */
 
 
 /**
@@ -708,11 +674,7 @@ renderJoystickLoop:
 
 	// right shift some more to make the value 3 bits (row 0-7)
 	mov		rTemp, rJoystickX
-	lsr		rTemp
-	lsr		rTemp
-	lsr		rTemp
-	lsr		rTemp
-	lsr		rTemp
+	lsr5	rTemp
 	mov		rColumn, rTemp
 
 	// rverse order rColumn (7-0 -> 0-7)
@@ -737,11 +699,7 @@ renderJoystickLoop:
 
 	// Right shift joystick input until it's 3 bits (row 0-7)
 	mov		rTemp, rJoystickY
-	lsr		rTemp
-	lsr		rTemp
-	lsr		rTemp
-	lsr		rTemp
-	lsr		rTemp
+	lsr5	rTemp
 	mov		rRow, rTemp
 
 	// rverse order rRow (7-0 -> 0-7)
@@ -768,20 +726,21 @@ renderJoystickLoop:
  * Renders the matrix to the screen
  */
 render:
-		/* temporay varabls */
 		.DEF	rStatus		= r18
 
 	// save status register and clear global interupts
 	in		rStatus, SREG
 	push	rStatus
 	cli	
-			.UNDEF	rStatus
 
-		/* temporay varabls */
+		.UNDEF	rStatus
+
 		.DEF	rRow		= r18
 		.DEF	rColumn		= r19
+		.DEF	rRowCount	= r20
 
-	ldi		rRow, 1				// Reset row count
+	ldi		rRowCount, 0		// Reset row count
+	ldi		rRow, 1				// Reset row bits
 	ldi		YH, HIGH(matrix)	// Set Y to matrix address
 	ldi		YL, LOW(matrix)
 
@@ -840,7 +799,11 @@ renderloop:
 	// show row delay (this is how long the row will be lit up)
 	ldi		rCounter, 0
 delayLoop:
-	nop
+/*	ldi		rCounter, 16 // temp
+	mul		rRowCount, rCounter
+	lds		rCounter, TCNT2
+	cp		rCounter, rMulResL
+	brlo	delayLoop*/
 	inc		rCounter
 	cpi		rCounter, 255
 	brne	delayLoop
@@ -848,9 +811,14 @@ delayLoop:
 		.UNDEF	rCounter
 
 	// clear all input
-	out		PORTB, ZERO
-	out		PORTC, ZERO
-	out		PORTD, ZERO
+	clr rPortB
+	clr rPortC
+	clr rPortD
+
+	// clear row
+	out		PORTB, rPortB
+	out		PORTC, rPortC
+	out		PORTD, rPortD
 
 		.UNDEF	rPortB
 		.UNDEF	rPortC
@@ -859,9 +827,11 @@ delayLoop:
 	cpi		rRow, 0x80
 	breq	exitRenderloop
 	lsl		rRow
+	subi	rRowCount, -1
 	jmp		renderloop
 exitRenderloop:
 
+		.UNDEF	rRowCount
 		.UNDEF	rRow
 		.UNDEF	rColumn
 
@@ -872,10 +842,65 @@ exitRenderloop:
 	pop		rStatus
 	out		SREG, rStatus
 
-			.UNDEF	rStatus
+		.UNDEF	rStatus
 	 
 	ret
 /* render end */
+
+
+
+
+/**
+ * Clear the matrix
+ */
+clearMatrix:
+		/* Register used for the pixels in a row */
+		.DEF	rRowBits	= r18
+
+	// clear the entire matrix
+	ldi		YH, HIGH(matrix)
+	ldi		YL, LOW(matrix)
+	clr		rRowBits
+	st		Y+, rRowBits
+	st		Y+, rRowBits
+	st		Y+, rRowBits
+	st		Y+, rRowBits
+	st		Y+, rRowBits
+	st		Y+, rRowBits
+	st		Y+, rRowBits
+	st		Y+, rRowBits
+
+		.UNDEF	rRowBits
+
+	ret
+/* clearMatrix end */
+
+
+
+/**
+ * Set all the bits in the matrix
+ */
+setMatrix:
+		/* Register used for the pixels in a row */
+		.DEF	rRowBits	= r18
+
+	// Initialize the matrix with a full set
+	ldi		YH, HIGH(matrix)	// Set Y to matrix address
+	ldi		YL, LOW(matrix)
+	ser		rRowBits
+	st		Y+, rRowBits
+	st		Y+, rRowBits
+	st		Y+, rRowBits
+	st		Y+, rRowBits
+	st		Y+, rRowBits
+	st		Y+, rRowBits
+	st		Y+, rRowBits
+	st		Y+, rRowBits
+
+		.UNDEF	rRowBits
+
+	ret
+/* setMatrix end */
 
 
 
@@ -927,7 +952,7 @@ readLoop:
 /**
  * Converts the 10 bit joystick value to an 8 bit value,
  * discarding the two least significant bits
- * @param rArgument0H + rArgument0L, 10 bit value from the joystick input
+ * @param rArgument0H + rArgument0L - 10 bit value from the joystick input
  * @return rReturnL - value between 0 255
  */
 joystickValueTo8Bit:
@@ -947,7 +972,7 @@ joystickValueTo8Bit:
 	lsl		rHighByte
 	or		rLowByte, rHighByte
 	mov		rReturnL, rLowByte
-	mov		rReturnH, ZERO
+	ldi		rReturnH, 0
 
 		.UNDEF	rHighByte
 		.UNDEF	rLowByte
@@ -956,6 +981,91 @@ joystickValueTo8Bit:
 /* joystickValueTo8Bit end */
 
 
+
+/**
+ * return the direction  depending on the joystick values
+ * @param rArgument0L - X (0 - 255)
+ * @param rArgument1L - Y (0 - 255)
+ * @return rReturnL - Returns the joystick direction (UP, DOWN, LEFT, RIGHT)
+ */
+joystickValuesToDirection:
+		/* rDirection */
+		.DEF	rDirectionX		= r20
+		.DEF	rDirectionY		= r21
+
+		/* The joystick X/Y axis 8 bit value */
+		.DEF	rJoystickX		= r18
+		.DEF	rJoystickY		= r19
+
+	mov		rJoystickX, rArgument0L
+	mov		rJoystickY, rArgument1L
+
+	ldi		rDirectionY, 3
+	ldi		rDirectionX, 3
+
+compareUp:
+	cpi		rJoystickY, 128 + JOYSTICK_THRESHOLD - 1
+	brlo	compareUpEnd
+	ldi		rDirectionY, 0
+compareUpEnd:
+	
+compareDown:
+	cpi		rJoystickY, 128 - JOYSTICK_THRESHOLD - 1
+	brsh	compareDownEnd
+	ldi		rDirectionY, 7
+compareDownEnd:
+
+compareLeft:
+	cpi		rJoystickX, 128 + JOYSTICK_THRESHOLD - 1
+	brlo	compareLeftEnd
+	ldi		rDirectionX, 0
+compareLeftEnd:
+
+compareRight:
+	cpi		rJoystickX, 128 - JOYSTICK_THRESHOLD - 1
+	brsh	compareRightEnd
+	ldi		rDirectionX, 7
+compareRightEnd:
+
+	mov		rReturnL, rDirectionX
+	mov		rReturnH, rDirectionY
+
+		.UNDEF	rJoystickX
+		.UNDEF	rJoystickY
+		.UNDEF	rDirectionX
+		.UNDEF	rDirectionY
+
+	ret
+/* joystickValuesToDirection */
+
+
+
+/**
+ * Initialize timer 2 with a specific presscaling. The prescaling argument is in the 
+ * range 0 - 7 using the bits (CS22, CS21, CS20), and represents timer scaling values 
+ * of 1 - 1024 as defined by the hardware.
+ * @param rArgument0L - Prescaling to be used
+ */
+ initializeTimer2:
+		.DEF rControlBits = r18
+		.DEF rPrescaling = r19
+	mov rPrescaling, rArgument0L
+	andi rPrescaling, ((1 << CS22) | (1 << CS21) | (1 << CS20))
+												
+	lds		rControlBits, TCCR2B										// Load timer control register B
+	or		rControlBits, rPrescaling									// Set prescaling bits
+	ori		rPrescaling, ~((1 << CS22) | (1 << CS21) | (1 << CS20))		// Inverted prescale bit mask
+	and		rControlBits, rPrescaling									// Clear prescaling bits
+	sts		TCCR2B, rControlBits										// Store timer control register B
+
+	// Set timer enabled bit - enable interrupts
+	lds		rControlBits, TIMSK2										
+	sbr		rControlBits, (1 << TOIE2)
+	sts		TIMSK2, rControlBits
+
+		.UNDEF rPrescaling
+		.UNDEF rControlBits
+/* initializeTimer2 end */
 
 /**
  * Draws a pixel in the matrix at the sepcified location
@@ -967,6 +1077,9 @@ setPixel:
 		.DEF	rRow		= r18
 		.DEF	rColumn		= r19
 		.DEF	rRowMask	= r20
+		.DEF	rZero		= r21
+
+	ldi rZero, 0
 
 	// Load the matrix adress into 16 bit register Y (LOW + HIGH)
 	mov		rRow, rArgument0L
@@ -985,7 +1098,7 @@ columnShiftEnd:
 	ldi		YH, HIGH(matrix)
 	ldi		YL, LOW(matrix)
 	add		YL,	rRow
-	adc		YH, ZERO
+	adc		YH, rZero
 	ld		rRow, Y
 	or		rRow, rRowMask
 	st		Y, rRow
@@ -996,63 +1109,6 @@ columnShiftEnd:
 
 	ret
 /* setPixel end */
-
-
-
-/**
- * Clear the matrix
- */
-clearMatrix:
-		/* rRowMask */
-		.DEF	rRowMask	= r18
-
-	// clear the entire matrix
-	ldi		YH, HIGH(matrix)
-	ldi		YL, LOW(matrix)
-	clr		rRowMask
-	st		Y+, rRowMask
-	st		Y+, rRowMask
-	st		Y+, rRowMask
-	st		Y+, rRowMask
-	st		Y+, rRowMask
-	st		Y+, rRowMask
-	st		Y+, rRowMask
-	st		Y+, rRowMask
-
-		.UNDEF	rRowMask
-
-	ret
-/* clearMatrix end */
-
-
-
-/**
- * fill the board and show it
- */
-fillBoard:
-		/* rColumnMask */
-		.DEF	rRowMask	= r18
-
-	// Initialize the matrix with a full set
-	ldi		YH, HIGH(matrix)	// Set Y to matrix address
-	ldi		YL, LOW(matrix)
-	ser		rRowMask
-	st		Y+, rRowMask
-	st		Y+, rRowMask
-	st		Y+, rRowMask
-	st		Y+, rRowMask
-	st		Y+, rRowMask
-	st		Y+, rRowMask
-	st		Y+, rRowMask
-	st		Y+, rRowMask
-
-		.UNDEF	rRowMask
-
-fillBoardLoop:
-	// simply show the filled board 'til the end of time
-	call	render
-	jmp		fillBoardLoop
-/* fillBoard end */
 
 
 
@@ -1097,7 +1153,7 @@ init:
 	cbi		DDRC, 4				// PORTC4 aka Y axis
 	cbi		DDRC, 5				// PORTC5 aka X axis
 
-		/* rTempValue */
+		/* Temporary value for modifying the ADMUX state */
 		.DEF	rTempValue	= r18
 
 	// Initialize analog / digital converter
@@ -1119,12 +1175,135 @@ init:
 
 
 /**
- * terminate the program
+ * Entry point
+ */
+main:
+		/* rColumn, rRow */
+		.DEF	rColumn		= r8
+		.DEF	rRow		= r9
+
+	// stack
+	push	rColumn
+	push	rRow
+	
+mainLoop:
+	call	clearMatrix
+	call initializeTimer2//, 0b111
+
+		/* Joystick input registers */
+		.DEF	rJoystickL	= r18
+		.DEF	rJoystickH	= r19
+
+	// Read X axis
+	ldi		rArgument0L, JOYSTICK_X_AXIS	// 1 represents X
+	call	readJoystick
+	mov		rJoystickL, rReturnL			// Store joystick input value
+	mov		rJoystickH, rReturnH
+
+	// Convert 10 bit value to 8 bit, discarding lowest 2 bits
+	mov		rArgument0L, rJoystickL
+	mov		rArgument0H, rJoystickH
+	call	joystickValueTo8Bit
+	mov		rColumn, rReturnL
+
+	// right shift some more to make the value 3 bits (row 0-7)
+	lsr5	rColumn
+
+	// rverse order rColumn (7-0 -> 0-7)
+	ldi		rTempI, 7
+	sub		rTempI, rColumn
+	mov		rColumn, rTempI
+
+	// Read Y axis
+	ldi		rArgument0L, JOYSTICK_Y_AXIS
+	call	readJoystick
+	mov		rJoystickL, rReturnL	// Store joystick input value
+	mov		rJoystickH, rReturnH
+
+	// Convert 10 bit value to 8 bit, discarding lowest 2 bits
+	mov		rArgument0L, rJoystickL
+	mov		rArgument0H, rJoystickH
+	call	joystickValueTo8Bit
+	mov		rRow, rReturnL
+
+		.UNDEF	rJoystickL
+		.UNDEF	rJoystickH
+
+	// Right shift joystick input until it's 3 bits (row 0-7)
+	lsr5	rRow
+
+	// Reverse row order (7-0 -> 0-7)
+	ldi		rTempI, 7
+	sub		rTempI, rRow
+	mov		rRow, rTempI
+
+	setPixelr	rRow, rColumn
+
+		/* Joystick input registries */
+		.DEF	rRowi		= r16
+		.DEF	rColumni	= r17
+
+	mov		rRowi,		rRow
+	mov		rColumni,	rColumn
+
+	// Program at (0,0) - Timer test
+	setPixeli	0, 0
+	bnei	rRowi, 0, skipProgram00
+	bnei	rColumni, 0, skipProgram00
+	call	timerTest
+	jmp		mainLoopEnd
+skipProgram00:
+
+	// Program at (0,7) - Render Joystick
+	setPixeli	0, 7
+	bnei	rRowi, 0, skipProgram07
+	bnei	rColumni, 7, skipProgram07
+	call	renderJoystick
+	jmp		mainLoopEnd
+skipProgram07:
+
+	// Program at (7,0) - Snake Game
+	setPixeli	7, 0
+	bnei	rRowi, 7, skipProgram70
+	bnei	rColumni, 0, skipProgram70
+	call	snakeGame
+	jmp		mainLoopEnd
+skipProgram70:
+
+	// Program at (7,7) - Snake Game
+	setPixeli	7, 7
+	bnei	rRowi, 7, skipProgram77
+	bnei	rColumni, 7, skipProgram77
+	call	fillBoard
+	jmp		mainLoopEnd
+skipProgram77:
+
+		.UNDEF	rRowi
+		.UNDEF	rColumni
+
+	call	render
+	jmp		mainLoop
+mainLoopEnd:
+
+	// stack
+	pop		rRow
+	pop		rColumn
+
+		.UNDEF	rRow
+		.UNDEF	rColumn
+
+	ret							// if program returned, exit main
+/* main end */
+
+
+
+/**
+ * Terminate the program
  */
 terminate:
 	cli								// no more interupts after termination
 
-		/* rRowMask */
+		/* The  */
 		.DEF	rRowMask	= r18
 
 	// Initialize the matrix with a skull
