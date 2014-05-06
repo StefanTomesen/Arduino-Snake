@@ -1,5 +1,9 @@
-*.lss
+/Debug
+/Release
+/Snake.lss
 /Snake.map
 /Snake.obj
 /Snake.tmp
 *.hex
+*.lss
+
