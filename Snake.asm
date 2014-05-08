@@ -65,19 +65,19 @@
 
 	/* Timer */
 	// Constants
-	.EQU	TIMER_DATA_SIZE		= 4
+	.EQU	TIMER_DATA_SIZE			= 4
 	// Data structure
-	.EQU	oTimerCurrentTimeL	= 0x00
-	.EQU	oTimerCurrentTimeH	= 0x01
-	.EQU	oTimerTargetTimeL	= 0x02
-	.EQU	oTimerTargetTimeH	= 0x03
+	.EQU	oTimerCurrentTimeL		= 0x00
+	.EQU	oTimerCurrentTimeH		= 0x01
+	.EQU	oTimerTargetTimeL		= 0x02
+	.EQU	oTimerTargetTimeH		= 0x03
 
 
 
 	/* Snake */
 	// Constants
-	.EQU	SNAKE_MAX_LENGTH	= 64
-	.EQU	SNAKE_DATA_SIZE		= 5 + (SNAKE_MAX_LENGTH * 2)
+	.EQU	SNAKE_MAX_LENGTH		= 64
+	.EQU	SNAKE_DATA_SIZE			= 5
 	// Data structure
 	.EQU	oSnakeDirectionX		= 0x00
 	.EQU	oSnakeDirectionY		= 0x01
@@ -377,40 +377,9 @@ timerTest:
 	ldi rArgument0L, TIMER2_PRE_1024
 	call initializeHardwareTimer2
 
-
 	// timer mystery debug code
-	/*
-	//					TCCR0A -> TCCR0A_0 == DDRB -> DDB0
-	//					TCCR0A -> TCCR0A_1 == DDRB -> DDB1
-	//					TCCR0A -> TCCR0A_2 == DDRB -> DDB2
-	//					TCCR0A -> TCCR0A_3 == DDRB -> DDB3
-	//					TCCR0A -> TCCR0A_4 == DDRB -> DDB4
-	//					TCCR0A -> TCCR0A_5 == DDRB -> DDB5
-	//					OCR0A -> OCR0A_0 == DDRC -> DDC0
-	//					OCR0A -> OCR0A_1 == DDRC -> DDC1
-	//					OCR0A -> OCR0A_2 == DDRC -> DDC2
-	//					OCR0A -> OCR0A_3 == DDRC -> DDC3
-	//					TCNT0 -> TCNT0_4 == DDRC -> DDC4 (joy y)
-	//					TCNT0 -> TCNT0_5 == DDRC -> DDC5 (joy x)
-	lds		rCounterL, TIMSK0
-	lds		rCounterH, TCCR0A
-	st		Y+, rCounterL
-	st		Y+, rCounterH
-	lds		rCounterL, TCNT0
-	lds		rCounterH, OCR0A
-	st		Y+, rCounterL
-	st		Y+, rCounterH
-	lds		rCounterL, TIMSK2
-	lds		rCounterH, TCCR2A
-	st		Y+, rCounterL
-	st		Y+, rCounterH
-	lds		rCounterL, TCNT2
-	lds		rCounterH, OCR2A
-	st		Y+, rCounterL
-	st		Y+, rCounterH
-	*/
+	//SOLVED IT WAS A GOD DAMN MOEMMOR MISMATCH WITH STS/LDS ADN IN/OUT	
 
-	sei
 timerTestLoop:
 	call	clearMatrix
 
@@ -516,6 +485,58 @@ resetTimeEnd2:
 
 
 /**
+ * Program: randomPixelDraw
+ * Draws a number of random pixelels
+ */
+randomPixelDraw:	
+
+	// Timer initializiton
+	ldi		rArgument0L, TIMER2_PRE_1024
+	call	initializeHardwareTimer2
+	
+		.DEF	rCounter	= r16
+		.DEF	rRandomX	= r19
+		.DEF	rRandomY	= r20
+
+	ldi		rCounter, 64
+
+random_MainLoop:
+
+	// Generate a new piece of food
+	// Generate a random value for the X axis based on the input noise of the X axis
+	ldi		rArgument0L, JOYSTICK_X_AXIS
+	call	generateRandom3BitValue
+	mov		rRandomX, rReturnL
+
+	// Generate a random value for the Y axis based on the input noise of the Y axis
+	push	rRandomX								// Protect the X position from being overwritten in the subroutine
+	ldi		rArgument0L, JOYSTICK_Y_AXIS
+	call	generateRandom3BitValue
+	pop		rRandomX
+	mov		rRandomY, rReturnL
+
+	// Draw the food in case it clear a piece of the snake	
+	setPixelr	rRandomY, rRandomX
+
+		.UNDEF	rRandomX
+		.UNDEF	rRandomY
+
+	dec		rCounter
+	cpi		rCounter, 0
+	brne	random_MainLoop
+
+		.UNDEF	rCounter
+
+random_render:
+	call	render
+	jmp		random_render
+
+	ret
+/* randomPixelDraw end */
+
+
+
+/**
  * Program: Snake
  * Start runing the snake game
  */
@@ -529,21 +550,20 @@ snakeGame:
 	initializeTimeri updateTimer, SNAKE_UPDATE_TIME
 	initializeTimeri flashFoodTimer, SNAKE_FOOD_UPDATE_TIME
 	
-	call	initializeFlashFood
-
 	call	initializeSnake
-	
-	//call randomizeFlashFood
+
+	call	initializeFlashFood
+	call	randomizeFlashFood
 
 	call	drawSnake
 
 snake_GameLoop:
 
 		/* The directions the joystick is pointed */
-		.DEF rDirectionX			= r16
-		.DEF rDirectionY			= r17
-		.DEF rPreviousDirectionX	= r18
-		.DEF rPreviousDirectionY	= r19
+		.DEF	rDirectionX			= r16
+		.DEF	rDirectionY			= r17
+		.DEF	rPreviousDirectionX	= r18
+		.DEF	rPreviousDirectionY	= r19
 
 	call	readJoystickDirection
 	mov		rDirectionX, rReturnL
@@ -590,7 +610,6 @@ snake_SkipChangeDirection:
 	cpi		rReturnL, 1
 	breq	snake_Update
 
-
 	// check if it should make the food flash 
 	checkTimeri flashFoodTimer	// returns boolean whether the timer has reached it's target time and reset	
 	cpi		rReturnL, 0
@@ -611,7 +630,7 @@ snake_UpdateFlashFoodEnd:
 
 		.DEF	rFlashFoodX	= r2
 		.DEF	rFlashFoodY	= r3
-		.DEF	rIsLit	= r16
+		.DEF	rIsLit		= r16
 
 	// load flashFood
 	ldi		YH, HIGH(flashFood)	
@@ -655,13 +674,12 @@ snake_Update:
 		.UNDEF	rSnakeDirectionX
 		.UNDEF	rSnakeDirectionY
 
-	//call	foodCollisionTest
-	ldi		rReturnL, 0  // Collision always false - TODO remove!
+	call	checkFoodCollision
 	cpi		rReturnL, 1
 	breq	snake_EatFood
 
-	call clearSnakeTail
-	jmp snake_MoveSnake
+	call	clearSnakeTail
+	jmp		snake_MoveSnake
 
 snake_EatFood:
 		.DEF	rTemp = r4
@@ -675,18 +693,174 @@ snake_EatFood:
 		
 		.UNDEF rTemp
 
-	call randomizeFlashFood
+		.DEF	rFlashFoodX	= r4
+		.DEF	rFlashFoodY	= r5
+
+	// Load the food position
+	ldi		YH, HIGH(flashFood)						// Load pointer to the food instance
+	ldi		YL, LOW(flashFood)
+	ldd		rFlashFoodX, Y + oFlashFoodPositionX	// Load food X position
+	ldd		rFlashFoodY, Y + oFlashFoodPositionY	// Load food Y position
+
+	// Draw the food in case it clear a piece of the snake	
+	setPixelr	rFlashFoodY, rFlashFoodX
+
+		.UNDEF	rFlashFoodX
+		.UNDEF	rFlashFoodY
+
+	// Generate a new piece of food
+	call	randomizeFlashFood
 
 snake_MoveSnake:
 
-	call clearSnakeTail
-	call pushNewSnakeHead
-	call drawSnakeHead
+	call	clearSnakeTail
+	call	pushNewSnakeHead
+	call	drawSnakeHead
 
-	jmp snake_GameLoopEnd
+	// Check whether the snake has collided with itself
+	call	checkSelfCollision
+	cpi		rReturnL, 1
+	breq	snake_GameOver
+	jmp		snake_GameLoopEnd
+
+snake_GameOver:
+	call	SnakeGameEndAnimation
+	jmp		SnakeGame
 
 	ret
-/* snakeGame */
+/* snakeGame end */
+
+
+
+/**
+ * End animoat of the sankes diesed
+ */
+SnakeGameEndAnimation:
+	ret
+/* checkSelfCollision end */	
+
+
+
+/**
+ * Checks whether the head of the snake intersects with any part of the body
+ * @return rReturnL - returns wheather is collided with itself
+ */
+checkSelfCollision:
+		.DEF	rSnakeHeadX		= r2
+		.DEF	rSnakeHeadY		= r3
+		.DEF	rSnakePartX		= r18
+		.DEF	rSnakePartY		= r19
+		.DEF	rIterator		= r4
+		.DEF	rZero			= r20
+
+	push	rSnakeHeadX
+	push	rSnakeHeadY
+	push	rIterator
+
+	// Initiate iterator at the last index
+	ldi		YL, LOW(snake)						// Get a pointer to the snake
+	ldi		YH, HIGH(snake)
+	ldd		rIterator, Y + oSnakeLength			// Get a pointer to the snake nlegth
+	dec		rIterator							// Subtract one to set the iterator to last index (length - 1)
+
+	// Load snake head position	
+	ldi		ZL, LOW(snakeArrayX)				// Get a pointer to the snake X array
+	ldi		ZH, HIGH(snakeArrayX)
+	ldi		YL, LOW(snakeArrayY)				// Get a pointer to the snake Y array
+	ldi		YH, HIGH(snakeArrayY)
+	ld		rSnakeHeadX, Z						// Load the head positions
+	ld		rSnakeHeadY, Y
+	
+	// Offset the array index to the tail index - 1
+	ldi		rZero, 0				
+	add		ZL, rIterator
+	adc		ZH, rZero
+	add		YL, rIterator
+	adc		YH, rZero
+
+	// Compare every part of the snake with the head
+checkSnakeBodyCollisonLoop:
+	ld		rSnakePartX, Z
+	ld		rSnakePartY, Y
+
+	// Do the comparison between the two
+	mov		rArgument0L, rSnakeHeadX
+	mov		rArgument0H, rSnakeHeadY
+	mov		rArgument1L, rSnakePartX
+	mov		rArgument1H, rSnakePartY
+	call	checkCollision
+	
+	// If a collision was detected, return true
+	cpi		rReturnL, 1
+	breq	checkSelfCollisionReturn
+
+	sbiw	Z, 1
+	sbiw	Y, 1
+	dec		rIterator
+	ldi		rZero, 0
+	cp		rIterator, rZero
+	brne	checkSnakeBodyCollisonLoop
+	
+	// Return false if no collision was detected
+	ldi		rReturnL, 0	
+
+checkSelfCollisionReturn:
+
+	pop		rIterator
+	pop		rSnakeHeadY
+	pop		rSnakeHeadX
+	
+		.UNDEF	rZero
+		.UNDEF	rIterator
+		.UNDEF	rSnakeHeadX
+		.UNDEF	rSnakeHeadY	
+		.UNDEF	rSnakePartX
+		.UNDEF	rSnakePartY
+
+	ret
+/* checkSelfCollision end */	
+
+
+
+/**
+ * Determines whether the head of the snake has collided with the piece of food.
+ * @return rReturnL - returns whether is collided with the food or not (boolean)
+ */
+checkFoodCollision:
+		.DEF	rSnakeHeadX		= r18
+		.DEF	rSnakeHeadY		= r19
+		.DEF	rFlashFoodX		= r20
+		.DEF	rFlashFoodY		= r21
+
+	// Load snake head position	
+	ldi		XL, LOW(snakeArrayX)					// Get a pointer to the snake X array
+	ldi		XH, HIGH(snakeArrayX)
+	ldi		YL, LOW(snakeArrayY)					// Get a pointer to the snake Y array
+	ldi		YH, HIGH(snakeArrayY)
+	ld		rSnakeHeadX, X							// Load the positions
+	ld		rSnakeHeadY, Y
+
+	// Load food position
+	ldi		YL, LOW(flashFood)						// Load food position pointer
+	ldi		YH, HIGH(flashFood)
+	ldd		rFlashFoodX, Y + oFlashFoodPositionX	// Load the position
+	ldd		rFlashFoodY, Y + oFlashFoodPositionY
+	
+	// Do the comparison between the two
+	mov		rArgument0L, rFlashFoodX
+	mov		rArgument0H, rFlashFoodY
+	mov		rArgument1L, rSnakeHeadX
+	mov		rArgument1H, rSnakeHeadY
+	call	checkCollision							// Returns the result to rReturnL, which is simply forwarded
+
+		.UNDEF	rSnakeHeadX
+		.UNDEF	rSnakeHeadY	
+		.UNDEF	rFlashFoodX
+		.UNDEF	rFlashFoodY
+
+	ret
+/* checkFoodCollision end */
+
 
 
 
@@ -711,7 +885,7 @@ initializeSnake:
 	std		Y + oSnakeNextDirectionY, rDirectionY
 
 	// Set length to 1
-	ldi		rSnakeLength, 1
+	ldi		rSnakeLength, 2
 	std		Y + oSnakeLength, rSnakeLength
 
 		.UNDEF	rDirectionX
@@ -822,6 +996,7 @@ drawSnakeLoop:
 		.UNDEF	rPositionX
 		.UNDEF	rPositionY
 		.UNDEF	rIterator
+		.UNDEF	rSnakeLength
 	ret
 /* drawSnake end */
 
@@ -995,6 +1170,36 @@ clearSnakeTail:
  */
 randomizeFlashFood:
 
+		.DEF	rFlashFoodX	= r18
+		.DEF	rFlashFoodY	= r19
+		.DEF	rIsLit		= r20
+
+	// Generate a random value for the X axis based on the input noise of the X axis
+	ldi		rArgument0L, JOYSTICK_X_AXIS
+	call	generateRandom3BitValue
+	mov		rFlashFoodX, rReturnL
+
+	// Generate a random value for the Y axis based on the input noise of the Y axis
+	push	rFlashFoodX								// Protect the X position from being overwritten in the subroutine
+	ldi		rArgument0L, JOYSTICK_Y_AXIS
+	call	generateRandom3BitValue
+	pop		rFlashFoodX
+	mov		rFlashFoodY, rReturnL
+	
+	// Set the new food as unlit
+	ldi		rIsLit, 0								
+
+	// Load food position
+	ldi		YH, HIGH(flashFood)						// Load pointer to the food instance
+	ldi		YL, LOW(flashFood)
+	std		Y + oFlashFoodPositionX, rFlashFoodX
+	std		Y + oFlashFoodPositionY, rFlashFoodY
+	std		Y + oIsLitUp, rIsLit
+
+		.UNDEF	rFlashFoodX
+		.UNDEF	rFlashFoodY
+		.UNDEF	rIsLit
+
 	ret
 /* randomizeFlashFood end */
 
@@ -1009,15 +1214,17 @@ initializeFlashFood:
 		.DEF	rFlashFoodY	= r19
 		.DEF	rIsLit		= r20
 
-	// Initalize flashFood
-	ldi		YH, HIGH(flashFood)		// Set Y to snakeX address
+	// Assign default values
+	ldi		rFlashFoodX, 0							// Set X position to 0
+	ldi		rFlashFoodY, 0							// Set Y position to 0
+	ldi		rIsLit, 0								// Set the food to being unlit
+	
+	// Store the values into the instance
+	ldi		YH, HIGH(flashFood)						// Load pointer to the food instance
 	ldi		YL, LOW(flashFood)
-	ldi		rFlashFoodX, 0
-	ldi		rFlashFoodY, 0
-	ldi		rIsLit, 0
-	std		Y + oFlashFoodPositionX, rFlashFoodX
-	std		Y + oFlashFoodPositionY, rFlashFoodY
-	std		Y + oIsLitUp, rIsLit
+	std		Y + oFlashFoodPositionX, rFlashFoodX	// Store the X position
+	std		Y + oFlashFoodPositionY, rFlashFoodY	// Store the Y position
+	std		Y + oIsLitUp, rIsLit					// Store the lit state
 
 		.UNDEF	rFlashFoodX
 		.UNDEF	rFlashFoodY
@@ -1071,7 +1278,7 @@ renderJoystickLoop:
 		.DEF	rJoystickH	= r5
 
 	// Read X axis
-	ldi		rArgument0L, 1			// 1 represents X
+	ldi		rArgument0L, JOYSTICK_X_AXIS
 	call	readJoystick
 	mov		rJoystickL, rReturnL	// Store joystick input value
 	mov		rJoystickH, rReturnH
@@ -1093,7 +1300,7 @@ renderJoystickLoop:
 	mov		rColumn, rTempI
 
 	// Read Y axis
-	ldi		rArgument0L, 0			// 0 represents Y
+	ldi		rArgument0L, JOYSTICK_Y_AXIS
 	call	readJoystick
 	mov		rJoystickL, rReturnL	// Store joystick input value
 	mov		rJoystickH, rReturnH
@@ -1133,6 +1340,80 @@ renderJoystickLoop:
 
 	ret
 /* renderJoystick end */
+
+
+
+/**
+ * Generate a random 3 bit value based on the noise in the joystick as well as the 
+ * current timer value. It's possible to choose which axis the joystick noise is 
+ * based on and subsequent calls to this functino should use different axes to ensure
+ * independent results.
+ * @param rArgument0L - Which joystick axis to base the randomization on (constants JOYSTICK_X_AXIS and JOYSTICK_Y_AXIS)
+ * @return rReturnL - A random value in the range 0 - 7 (3bit)
+ */
+generateRandom3BitValue:
+
+		.DEF	rRandomNumber = r18
+		.DEF	rTimerValueL = r19
+
+	// Get a 10 bit value (2 bytes) from the joystick based on the argument to this subroutine
+	call	readJoystick
+	mov		rRandomNumber, rReturnL
+
+	// Add the lower part of the timer value to the random number to give additional noise
+	lds		rTimerValueL, TCNT2
+	add		rRandomNumber, rTimerValueL
+
+	// Reverses the order of the 3 lowest bits
+	bst		rRandomNumber, 0
+	bld		rRandomNumber, 7
+	bst		rRandomNumber, 2
+	bld		rRandomNumber, 0
+	bst		rRandomNumber, 7
+	bld		rRandomNumber, 2
+
+	// Mask out the 3 lowest bits we're interested in
+	andi	rRandomNumber, 0b00000111
+
+	mov rReturnL, rRandomNumber
+		
+		.UNDEF	rRandomNumber
+		.UNDEF	rTimerValueL
+	
+	ret
+/* generateRandom3BitValue end */
+
+
+
+/**
+ * Determines whether two positions intersect
+ * @param rArgument0L - The X coordinate of the first position
+ * @param rArgument0H - The Y coordinate of the first position
+ * @param rArgument1L - The X coordinate of the second position
+ * @param rArgument1H - The Y coordinate of the second position
+ * @return rReturnL - Whether or not the points intersect (boolean)
+ */
+checkCollision:
+		.DEF	rHasCollided = r18
+
+ 	// Set collision to false by default
+	ldi		rHasCollided, 0
+
+	// Check whether a collision has occured
+	cp		rArgument0L, rArgument1L				// If the x values are different, we haven't collided
+	brne	skipCollidedWithFood
+	cp		rArgument0H, rArgument1H				// If the y values are different, we haven't collided
+	brne	skipCollidedWithFood
+	ldi		rHasCollided, 1							// If we have collided, return true
+skipCollidedWithFood:
+
+	// Return whether we have collided or not
+	mov		rReturnL, rHasCollided					
+		
+		.UNDEF	rHasCollided
+	ret
+/* checkCollision end */
+
 
 
 /**
@@ -1272,18 +1553,20 @@ exitRenderloop:
 
 
 /**
- * Load x/y value from joystick
- * @param rArgument0L - 1 for X, 0 for Y
+ * Load either the current X or Y value from joystick.
+ * @param rArgument0L - The axis that is being read (constants JOYSTICK_X_AXIS and JOYSTICK_Y_AXIS)
  * @return rReturnL + rReturnH (16 bit) - value between 0 1023
  */
 readJoystick:
 		.DEF	rMaskBits = r18
 		.DEF	rADMUX = r19
 	
+	// Merge the axis bit with the number 4 to give either 4 or 5, representing either x or y in the hardware
 	andi	rArgument0L, 1			// Mask out LSB
 	mov		rMaskBits, rArgument0L		
 	ori		rMaskBits, 0b00000100	// choose joystick axis (port 4=Y / 5=X) 
 
+	// Write to the ADMUX which axis we want to read from
 	lds		rADMUX, ADMUX			// Load ADMUX byte
 	or		rADMUX, rMaskBits		// set bit that should be set
 	ori		rMaskBits, 0b11110000	// mask out preserved bits
@@ -1295,19 +1578,19 @@ readJoystick:
 
 		.DEF	rADCSRA = r18
 
-	// start convertion
+	// Start the analog to digital convertion
 
 	lds		rADCSRA, ADCSRA
 	ori		rADCSRA, 0b01000000		
 	sts		ADCSRA, rADCSRA
 
-	// load loop - wait until value loaded
+	// Wait until the value has been read
 readLoop:
 	lds		rADCSRA, ADCSRA
 	sbrc	rADCSRA, 6
 	jmp		readLoop
 
-	// return value
+	// Return the value
 	lds		rReturnL, ADCL
 	lds		rReturnH, ADCH
 
@@ -2030,43 +2313,55 @@ mainLoop:
 	mov		rRowi,		rRow
 	mov		rColumni,	rColumn
 
-	// Program at (0,0) - Timer test
+	// Program at (0,0) - Snake Game
 	setPixeli	0, 0
 	cpi		rRowi, 0
 	brne	skipProgram00
 	cpi		rColumni, 0
 	brne	skipProgram00
-	call	timerTest
+	call	snakeGame
 	jmp		mainLoopEnd
 skipProgram00:
 
-	// Program at (0,7) - Render Joystick
-	setPixeli	0, 7
-	cpi		rRowi, 0
+	// Program at (0,7) - Timer test
+	setPixeli	7, 0
+	cpi		rRowi, 7
 	brne	skipProgram07
-	cpi		rColumni, 7
+	cpi		rColumni, 0
 	brne	skipProgram07
-	call	renderJoystick
+	call	timerTest
 	jmp		mainLoopEnd
 skipProgram07:
 
-	// Program at (7,0) - Snake Game
-	setPixeli	7, 0
+	// Program at (2,7) - Render Joystick
+	setPixeli	7, 2
 	cpi		rRowi, 7
-	brne	skipProgram70
-	cpi		rColumni, 0
-	brne	skipProgram70
-	call	snakeGame
+	brne	skipProgram27
+	cpi		rColumni, 2
+	brne	skipProgram27
+	call	renderJoystick
 	jmp		mainLoopEnd
-skipProgram70:
+skipProgram27:
 
-	// Program at (7,7) - Snake Game
+
+
+	// Program at (5,7) - fillBoard
+	setPixeli	7, 5
+	cpi		rRowi, 7
+	brne	skipProgram57
+	cpi		rColumni, 5
+	brne	skipProgram57
+	call	fillBoard
+	jmp		mainLoopEnd
+skipProgram57:
+
+	// Program at (7,7) - Random Pixel Test
 	setPixeli	7, 7
 	cpi		rRowi, 7
 	brne	skipProgram77
 	cpi		rColumni, 7
 	brne	skipProgram77
-	call	fillBoard
+	call	randomPixelDraw
 	jmp		mainLoopEnd
 skipProgram77:
 
