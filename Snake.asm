@@ -5,9 +5,11 @@
  *	avrdude -C "C:\WinAVR-20100110\bin\avrdude.conf" -patmega328p -Pcom4 -carduino -b115200 -Uflash:w:Snake.hex 
  *
  *	Thism2 assemble setting
- *	avrdude -C "E:\Övrigt\WinAVR-20100110\bin\avrdude.conf" -p atmega328p -P com3 -c arduino -b 115200 -U flash:w:Snake.hex 
+ *	avrdude -C "E:\Other\WinAVR-20100110\bin\avrdude.conf" -p atmega328p -P com3 -c arduino -b 115200 -U flash:w:Snake.hex 
  *
  */ 
+
+
 
 	/** 
 	 * Global Register Definitions
@@ -32,6 +34,8 @@
 	.DEF	rArgument3H	= r19
 	*/
 
+
+
 	/**
 	 * Global constant definitions
 	 */ 
@@ -40,13 +44,7 @@
 	/* Joystick */
 	.EQU	JOYSTICK_X_AXIS		= 1
 	.EQU	JOYSTICK_Y_AXIS		= 0
-
 	.EQU	JOYSTICK_THRESHOLD	= 128 - 64
-	.EQU	JOYSTICK_NONE		= 0
-	.EQU	JOYSTICK_UP			= 1
-	.EQU	JOYSTICK_DOWN		= 2
-	.EQU	JOYSTICK_LEFT		= 3
-	.EQU	JOYSTICK_RIGHT		= 4
 
 	/* Ledjoy */
 	.EQU	NUM_COLUMNS			= 8
@@ -54,7 +52,9 @@
 	
 	/* Timer2 */
 	.EQU	TIMER2_PRE_1024		= ((1 << CS22) | (1 << CS21) | (1 << CS20))
-	// A timer value of 4096 roughly represents 67 seconds with 1024 prescaling
+	// A timer value of 4096 roughly represents 67 seconds with 1024 prescaling (tested)
+
+
 
 	/**
 	 * Struct definitions. Each struct consists of a number of constants, one of which 
@@ -72,8 +72,6 @@
 	.EQU	oTimerTargetTimeL		= 0x02
 	.EQU	oTimerTargetTimeH		= 0x03
 
-
-
 	/* Snake */
 	// Constants
 	.EQU	SNAKE_MAX_LENGTH		= 64
@@ -84,7 +82,6 @@
 	.EQU	oSnakeNextDirectionX	= 0x02
 	.EQU	oSnakeNextDirectionY	= 0x03
 	.EQU	oSnakeLength			= 0x04
-
 
 	/* FlashFood */
 	// Constants
@@ -103,6 +100,7 @@
 	.EQU	oProgramY				= 0x01
 	.EQU	oProgramAdressL			= 0x02
 	.EQU	oProgramAdressH			= 0x03
+
 
 
 	/**
@@ -126,27 +124,6 @@
 	.EQU	RANDOM_NUMBER_COUNT		= 16
 	.EQU	RANDOM_DISPLAY_TIME		= 128
 
-	/**							
-	 * Data Segment
-	 */
-	.DSEG
-
-matrix:				.BYTE	NUM_ROWS					// LED matrix - 1 bit per "pixel" = one byte per row
-
-programs:			.BYTE	MAX_PROGRAMS * PROGRAM_DATA_SIZE
-programCount:		.BYTE	1
-
-// Timer instances
-renderTimer:		.BYTE	TIMER_DATA_SIZE
-updateTimer:		.BYTE	TIMER_DATA_SIZE
-flashFoodTimer:		.BYTE	TIMER_DATA_SIZE
-boardFlashTimer:	.BYTE	TIMER_DATA_SIZE
-
-// Snake data
-snake:				.BYTE	SNAKE_DATA_SIZE
-snakeArrayX:		.BYTE	SNAKE_MAX_LENGTH
-snakeArrayY:		.BYTE	SNAKE_MAX_LENGTH
-flashFood:			.BYTE	FLASH_FOOD_DATA_SIZE
 
 
 	/** 
@@ -205,7 +182,6 @@ flashFood:			.BYTE	FLASH_FOOD_DATA_SIZE
 		lsr3	@0
 	.ENDMACRO
 
-
 	/**
 	 * Add constant to a 16 bit composite virtual register outside of X, Y and Z
 	 * param @0 - Low register
@@ -219,8 +195,8 @@ flashFood:			.BYTE	FLASH_FOOD_DATA_SIZE
 	
 	/**
 	 * Sets a pixel based on register input
-	 * @param @0 - Y value of the pixel to be set
-	 * @param @1 - X value of the pixel to be set
+	 * @param @0 - X value of the pixel to be set
+	 * @param @1 - Y value of the pixel to be set
 	 */
 	.MACRO	setPixelr			// SetPixel subroutine call from register
 		mov		rArgument0L, @0
@@ -230,10 +206,10 @@ flashFood:			.BYTE	FLASH_FOOD_DATA_SIZE
 
 	/**
 	 * Clears a pixel based on register input
-	 * @param @0 - Y value of the pixel to be cleared
-	 * @param @1 - X value of the pixel to be cleared
+	 * @param @0 - X value of the pixel to be cleared
+	 * @param @1 - Y value of the pixel to be cleared
 	 */
-	.MACRO	clearPixelr			// SetPixel subroutine call from register
+	.MACRO	clearPixelr			// clearPixel subroutine call from register
 		mov		rArgument0L, @0
 		mov		rArgument1L, @1
 		call	clearPixel
@@ -241,8 +217,8 @@ flashFood:			.BYTE	FLASH_FOOD_DATA_SIZE
 
 	/**
 	 * Sets a pixel based on a constant value
-	 * @param @0 - Y value of the pixel to be set
-	 * @param @1 - X value of the pixel to be set
+	 * @param @0 - X value of the pixel to be set
+	 * @param @1 - Y value of the pixel to be set
 	 */
 	.MACRO	setPixeli			// SetPixel subroutine call from constant
 		ldi		rArgument0L, @0
@@ -252,15 +228,14 @@ flashFood:			.BYTE	FLASH_FOOD_DATA_SIZE
 
 	/**
 	 * Clears a pixel based on a constant value
-	 * @param @0 - Y value of the pixel to be cleared
+	 * @param @0 - X value of the pixel to be cleared
 	 * @param @1 - Y value of the pixel to be cleared
 	 */
-	.MACRO	clearPixeli			// SetPixel subroutine call from constant
+	.MACRO	clearPixeli			// clearPixel subroutine call from constant
 		ldi		rArgument0L, @0
 		ldi		rArgument1L, @1
 		call	clearPixel
 	.ENDMACRO
-	
 	
 	/**
 	 * Increment a timer data structure. 
@@ -271,8 +246,6 @@ flashFood:			.BYTE	FLASH_FOOD_DATA_SIZE
 		ldi		rArgument0H, HIGH(@0)
 		call	incrementTimer
 	.ENDMACRO
-
-
 
 	/**
 	 * Set the callback for a timer data structure. 
@@ -287,8 +260,6 @@ flashFood:			.BYTE	FLASH_FOOD_DATA_SIZE
 		call	initializeTimer
 	.ENDMACRO
 
-
-
 	/**
 	 * Checks whether a timer has reached its target value and resets the timer if it has
 	 * @param @0 - the timer label
@@ -299,7 +270,13 @@ flashFood:			.BYTE	FLASH_FOOD_DATA_SIZE
 		ldi		rArgument0H, HIGH(@0)
 		call	checkTimer
 	.ENDMACRO
-
+	
+	/**
+	 * ???
+	 * @param @0 - ???
+	 * @param @1 - ???
+	 * @param @2 - ???
+	 */
 	.MACRO	addProgrami
 		ldi		rArgument0L, @0			// X
 		ldi		rArgument0H, @1			// Y
@@ -307,7 +284,14 @@ flashFood:			.BYTE	FLASH_FOOD_DATA_SIZE
 		ldi		rArgument1H, HIGH(@2)	// HIGH(LABEL)
 		call	addProgram
 	.ENDMACRO
-
+	
+	/**
+	 * ???
+	 * @param @0 - ???
+	 * @param @1 - ???
+	 * @param @2 - ???
+	 * @param @3 - ???
+	 */
 	.MACRO	checkCollisionr
 		mov		rArgument0L, @0			// X
 		mov		rArgument0H, @1			// Y
@@ -315,8 +299,14 @@ flashFood:			.BYTE	FLASH_FOOD_DATA_SIZE
 		mov		rArgument1H, @3			// Y2
 		call	checkCollision
 	.ENDMACRO
-
 	
+	/**
+	 * ???
+	 * @param @0 - ???
+	 * @param @1 - ???
+	 * @param @2 - ???
+	 * @param @3 - ???
+	 */	
 	.MACRO	checkCollisioni
 		ldi		rArgument0L, @0			// X
 		ldi		rArgument0H, @1			// Y
@@ -326,6 +316,33 @@ flashFood:			.BYTE	FLASH_FOOD_DATA_SIZE
 	.ENDMACRO
 
 
+
+	/**							
+	 * Data Segment
+	 */
+	.DSEG
+
+// Ledjoy matrix
+matrix:				.BYTE	NUM_ROWS					// LED matrix - 1 bit per "pixel" = one byte per row
+
+// Main menu
+programs:			.BYTE	MAX_PROGRAMS * PROGRAM_DATA_SIZE
+programCount:		.BYTE	1
+
+// Timer instances
+renderTimer:		.BYTE	TIMER_DATA_SIZE
+updateTimer:		.BYTE	TIMER_DATA_SIZE
+flashFoodTimer:		.BYTE	TIMER_DATA_SIZE
+boardFlashTimer:	.BYTE	TIMER_DATA_SIZE
+
+// Snake data
+snake:				.BYTE	SNAKE_DATA_SIZE
+snakeArrayX:		.BYTE	SNAKE_MAX_LENGTH
+snakeArrayY:		.BYTE	SNAKE_MAX_LENGTH
+flashFood:			.BYTE	FLASH_FOOD_DATA_SIZE
+
+
+	
 	/**							
 	 * Code segment
 	 */
@@ -338,8 +355,7 @@ flashFood:			.BYTE	FLASH_FOOD_DATA_SIZE
 
 	// timer0 overflow interupt
 	.ORG	OVF0addr 
-		//jmp		timer0OverflowInterupt		// Timer 0 overflow vector
-		jmp		timer2OverflowInterupt		// Timer 2 overflow vector	
+		jmp		timer0OverflowInterupt		// Timer 0 overflow vector
 		nop
 
 	// timer2 overflow interupt
@@ -412,6 +428,7 @@ timer2OverflowInterupt:
 
 	reti
 /* timer2OverflowInterupt end */
+
 
 
 /**
@@ -534,7 +551,7 @@ randomGenerateNumberLoop:
 	mov		rRandomY, rReturnL
 
 	// Draw the food in case it clear a piece of the snake	
-	setPixelr	rRandomY, rRandomX
+	setPixelr	rRandomX, rRandomY
 
 	dec		rCounter
 	cpi		rCounter, 0
@@ -661,10 +678,10 @@ snake_UpdateFlashFoodEnd:
 	ldd		rIsLit, Y + oIsLitUp
 
 
-	clearPixelr	rFlashFoodY, rFlashFoodX
+	clearPixelr	rFlashFoodX, rFlashFoodY
 	cpi		rIsLit, 0
 	breq	snake_SkipDrawFood
-	setPixelr	rFlashFoodY, rFlashFoodX
+	setPixelr	rFlashFoodX, rFlashFoodY
 
 		.UNDEF	rFlashFoodX
 		.UNDEF	rFlashFoodY
@@ -724,7 +741,7 @@ snake_EatFood:
 	ldd		rFlashFoodY, Y + oFlashFoodPositionY	// Load food Y position
 
 	// Draw the food in case it clear a piece of the snake	
-	setPixelr	rFlashFoodY, rFlashFoodX
+	setPixelr	rFlashFoodX, rFlashFoodY
 
 		.UNDEF	rFlashFoodX
 		.UNDEF	rFlashFoodY
@@ -956,7 +973,6 @@ checkFoodCollision:
 
 
 
-
 /**
  * Initialize the snake at position (1,2) pointing down
  */
@@ -994,7 +1010,6 @@ initializeSnake:
 	ldi		YH, HIGH(snakeArrayY)
 	ldi		YL, LOW(snakeArrayY)
 
-// TEMP 5 SIZE SNAKE
 	// Set head position
 	ldi		rPositionX, 1
 	ldi		rPositionY, 5
@@ -1003,34 +1018,17 @@ initializeSnake:
 
 	// Set tail position
 	ldi		rPositionX, 1
-	ldi		rPositionY, 4
+	ldi		rPositionY, 6
 	std		Z + 1, rPositionX
 	std		Y + 1, rPositionY
-
-	// Set tail position
-	ldi		rPositionX, 1
-	ldi		rPositionY, 3
-	std		Z + 2, rPositionX
-	std		Y + 2, rPositionY
-
-	// Set tail position
-	ldi		rPositionX, 1
-	ldi		rPositionY, 2
-	std		Z + 3, rPositionX
-	std		Y + 3, rPositionY
-
-	// Set tail position
-	ldi		rPositionX, 1
-	ldi		rPositionY, 1
-	std		Z + 4, rPositionX
-	std		Y + 4, rPositionY
-// TEMP 5 SIZE SNAKE END
 
 		.UNDEF	rPositionX
 		.UNDEF	rPositionY
 
 	ret
 /* initializeSnake end */	
+
+
 
 /**
  * Draws the snake on the screen
@@ -1070,7 +1068,7 @@ drawSnakeLoop:
 	push	ZL
 	push	YH
 	push	ZH
-	setPixelr rPositionY, rPositionX
+	setPixelr rPositionX, rPositionY
 	pop		ZH
 	pop		YH
 	pop		ZL
@@ -1203,13 +1201,12 @@ insertHead:
 	ldd		rSnakeHeadY, Y + 0			// y at index n = 0
 	
 	// Draw the new head
-	setPixelr	rSnakeHeadY, rSnakeHeadX
+	setPixelr	rSnakeHeadX, rSnakeHeadY
 			
 		.UNDEF	rSnakeHeadX
 		.UNDEF	rSnakeHeadY
 	ret
 /* drawSnakeHead end */
-
 
 
 
@@ -1246,7 +1243,7 @@ clearSnakeTail:
 	ld		rSnakeTailY, Y				// y at index n = 0
 	
 	// Clear the tail pixel
-	clearPixelr	rSnakeTailY, rSnakeTailX
+	clearPixelr	rSnakeTailX, rSnakeTailY
 			
 		.UNDEF	rSnakeTailX
 		.UNDEF	rSnakeTailY
@@ -1326,12 +1323,9 @@ initializeFlashFood:
 	ret
 /* initializeFlashFood end */
 
-
-
 /******************************************************************************************
  * End Snake Game																	  
  *****************************************************************************************/
-
 
 
 
@@ -1344,14 +1338,12 @@ initializeFlashFood:
 	ret
 /* mazeGame end */
 
-
 /******************************************************************************************
  * End Maze Game																	  
  *****************************************************************************************/
 
 
 
- 
 /******************************************************************************************
  * Program: Asteroids																	  *
  * ASTEROIDS!																			  *
@@ -1361,11 +1353,9 @@ initializeFlashFood:
 	ret
 /* asteroids end */
 
-
 /******************************************************************************************
  * End Asteroids																	  
  *****************************************************************************************/
-
 
 
 
@@ -1383,7 +1373,6 @@ fillBoardLoop:
 
 	ret
 /* fillBoard end */
-
 
 
 
@@ -1460,7 +1449,7 @@ renderJoystickLoop:
 	mov		rRow, rTempI
 
 	// Set joystick pixel
-	setPixelr rRow, rColumn
+	setPixelr rColumn, rRow
 
 		.UNDEF	rJoystickX
 		.UNDEF	rJoystickY
@@ -1809,6 +1798,7 @@ readLoop:
 /* joystickValueTo8Bit end */
 
 
+
 /**
  * Converts the 10 bit joystick value to an 8 bit value,
  * discarding the two least significant bits
@@ -2017,7 +2007,6 @@ checkTimerSkipReset:
 
 
 
-
 /**
  * Initialize timer 2 with a specific presscaling. The prescaling argument is in the 
  * range 0 - 7 using the bits (CS22, CS21, CS20), and represents timer scaling values 
@@ -2052,23 +2041,20 @@ checkTimerSkipReset:
 
 /**
  * Draws a pixel in the matrix at the sepcified location
- * @param rArgument0L The row (Y) of the pixel
- * @param rArgument1L The column (X) of the pixel
+ * @param rArgument0L - The column (X) of the pixel
+ * @param rArgument1L - The row (Y) of the pixel
  */
 setPixel:
-		/* rRow, rColumn, rRowMask */
 		.DEF	rRow		= r18
 		.DEF	rColumn		= r19
 		.DEF	rRowMask	= r20
 		.DEF	rZero		= r21
 
-	ldi rZero, 0
-
 	// Load the matrix adress into 16 bit register Y (LOW + HIGH)
-	mov		rRow, rArgument0L
-	mov		rColumn, rArgument1L
+	mov		rColumn,	rArgument0L
+	mov		rRow,		rArgument1L
 
-	// Assert coordinates < 8
+	// Assert coordinates X & Y < 8
 	cpi		rRow, 8
 	brlo	setValidPixel
 	cpi		rColumn, 8
@@ -2088,6 +2074,7 @@ setPixelColumnShiftEnd:
 
 	ldi		YH, HIGH(matrix)
 	ldi		YL, LOW(matrix)
+	ldi		rZero, 0
 	add		YL,	rRow
 	adc		YH, rZero
 	ld		rRow, Y
@@ -2106,8 +2093,8 @@ setPixelColumnShiftEnd:
 
 /**
  * Clears a pixel in the matrix at the sepcified location
- * @param rArgument0L The row (Y) of the pixel
- * @param rArgument1L The column (X) of the pixel
+ * @param rArgument0L - The column (X) of the pixel
+ * @param rArgument1L - The row (Y) of the pixel
  */
 clearPixel:
 		.DEF	rRow		= r18
@@ -2116,8 +2103,8 @@ clearPixel:
 		.DEF	rLocalTemp	= r21
 
 	// Load the matrix adress into 16 bit register Y (LOW + HIGH)
-	mov		rRow, rArgument0L
-	mov		rColumn, rArgument1L
+	mov		rColumn,	rArgument0L
+	mov		rRow,		rArgument1L
 
 	// convert value to mask
 	ldi		rRowMask, 0b10000000
@@ -2144,9 +2131,10 @@ clearPixelcolumnShiftEnd:
 		.UNDEF	rRow
 		.UNDEF	rColumn
 		.UNDEF	rRowMask
+		.UNDEF	rLocalTemp
 
 	ret
-/* setPixel end */
+/* clearPixel end */
 
 
 
@@ -2307,7 +2295,6 @@ drawTemplarMatrix:
 
 
 
-
 /**
  * Set the bits in the matrix with a skull
  */
@@ -2342,7 +2329,6 @@ drawSkullMatrix:
 	
 
 
-
 /**
  * Inverts all the bits in the matrix
  */
@@ -2373,7 +2359,6 @@ invertRowBits:
 
 	ret
 /* invertMatrix end */
-
 
 
 
@@ -2431,6 +2416,7 @@ initializeProgram:
 		
 	ret
 /* addProgram end */
+
 
 
 /**
@@ -2491,7 +2477,8 @@ init:
 
 	call	main				// call main (entry point)
 	call	terminate			// if returned from main, terminate
-	ret							// WARING IT SOHULD NEVER REACH THIS
+
+	ret							// WARNING! IT SHOULD NEVER REACH THIS
 /* init end */
 
 
@@ -2515,17 +2502,6 @@ main:
 
 		.UNDEF	rProgramCount
 
-/*************************** PROGRAMS ***************************
-	// Program at (0,0) - Snake Game
-	// Program at (5,0) - Maze Game
-	// Program at (7,0) - Asteroids
-
-	// Program at (0,7) - Timer test
-	// Program at (2,7) - Render Joystick
-	// Program at (5,7) - fillBoard
-	// Program at (7,7) - Random Pixel Draw
-
-****************************************************************/
 	addProgrami 0, 0, snakeGame
 	addProgrami 5, 0, mazeGame
 	addProgrami 7, 0, asteroids
@@ -2585,11 +2561,10 @@ mainLoop:
 	sub		rTempI, rRow
 	mov		rRow, rTempI
 
-	setPixelr	rRow, rColumn
+	setPixelr	rColumn, rRow
 
 		.UNDEF	rTemp
 		.UNDEF	rTempI
-
 
 		.DEF	rProgramIterator = r16
 		.DEF	rProgramX		 = r2
@@ -2608,7 +2583,7 @@ programLoop:
 
 	push	YL
 	push	YH
-	setPixelr		rProgramY, rProgramX	
+	setPixelr		rProgramX, rProgramY
 	checkCollisionr	rColumn, rRow, rProgramX, rProgramY
 	pop		YH
 	pop		YL
@@ -2639,13 +2614,17 @@ mainLoopEnd:
 /* main end */
 
 
+
 /**
  * Terminate the program
  */
 terminate:
 	cli								// no more interupts after termination
 	call	drawSkullMatrix
+
 terminateLoop:
 	call	render
 	jmp		terminateLoop
+
+	// no ret since the program was terminated
 /* terminate end */
