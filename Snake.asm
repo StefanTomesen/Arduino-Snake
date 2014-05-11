@@ -379,16 +379,16 @@ timer0OverflowInterupt:
 
 
 /**
- * Handle overflow interupts from timer 1
+ * Handle overflow interupts from timer 2
  */
 timer2OverflowInterupt:
 	
 		.DEF	rStatus		= r18
 
-	// save status
-	push	rStatus						// save register
+	// Save the status
+	push	rStatus						// push register r18
 	in		rStatus, SREG				
-	push	rStatus
+	push	rStatus						// push status register
 		
 		.UNDEF	rStatus
 		
@@ -421,10 +421,10 @@ timer2OverflowInterupt:
 	
 		.DEF	rStatus		= r18
 
-	// restore status
-	pop		rStatus
-	out		SREG, rStatus
-	pop		rStatus						// restore register
+	// Restore status
+	pop		rStatus						
+	out		SREG, rStatus				// Restore the status register
+	pop		rStatus						// Restore register r18
 		
 		.UNDEF	rStatus
 
@@ -1469,70 +1469,6 @@ renderJoystickLoop:
 
 
 /**
- * Generate a random 3 bit value based on the noise in the joystick as well as the 
- * current timer value. It's possible to choose which axis the joystick noise is 
- * based on and subsequent calls to this function should use different axes to ensure
- * independent results. The higher the bit, the more random it is.
- * @param rArgument0L - Which joystick axis to base the randomization on (constants JOYSTICK_X_AXIS and JOYSTICK_Y_AXIS)
- * @return rReturnL - A random value in the range 0 - 7 (3bit)
- */
- generateRandom3BitValue:
-	call	generateRandom4BitValue		// Generate a 4 bit value
-	lsr		rReturnL					// Drop the last, least random bit
-	
-	ret
-/* generateRandom3BitValue end */
-
-
-/**
- * Generate a random 4 bit value based on the noise in the joystick as well as the 
- * current timer value. It's possible to choose which axis the joystick noise is 
- * based on and subsequent calls to this function should use different axes to ensure
- * independent results. The higher the bit, the more random it is.
- * @param rArgument0L - Which joystick axis to base the randomization on (constants JOYSTICK_X_AXIS and JOYSTICK_Y_AXIS)
- * @return rReturnL - A random value in the range 0 - 15 (4bit)
- */
-generateRandom4BitValue:
-
-		.DEF	rRandomNumber = r18
-		.DEF	rTimerValueL  = r19
-		.DEF	rOutputValue  = r20
-
-	// Get a 10 bit value (2 bytes) from the joystick based on the argument to this subroutine
-	call	readJoystick
-	mov		rRandomNumber, rReturnL
-
-	// Add the lower part of the timer value to the random number to give additional noise
-	lds		rTimerValueL, TCNT2
-	add		rRandomNumber, rTimerValueL
-
-	// Reverses the order of the 4 lowest bits and discards the rest
-	ldi		rOutputValue, 0
-
-	bst		rRandomNumber, 0
-	bld		rOutputValue, 3
-
-	bst		rRandomNumber, 1
-	bld		rOutputValue, 2
-
-	bst		rRandomNumber, 2
-	bld		rOutputValue, 1
-
-	bst		rRandomNumber, 3
-	bld		rOutputValue, 0
-
-	mov rReturnL, rOutputValue
-		
-		.UNDEF	rRandomNumber
-		.UNDEF	rTimerValueL
-		.UNDEF	rOutputValue
-	
-	ret
-/* generateRandom4BitValue end */
-
-
-
-/**
  * Determines whether two positions intersect
  * @param rArgument0L - The X coordinate of the first position
  * @param rArgument0H - The Y coordinate of the first position
@@ -1564,10 +1500,10 @@ skipCollidedWithFood:
 
 
 /**
- * Draws the logo for the program 'Snake Game', alternating between two different frames.
+ * Draws the icon for the program 'Snake Game', alternating between two different frames.
  * @param rArgument0L - Which of the two frames that is draw
  */
-drawSnakeLogo:
+drawSnakeIcon:
 		/* Register used for the pixels in a row */
 		.DEF	rRowBits	= r18
 
@@ -1575,11 +1511,11 @@ drawSnakeLogo:
 	ldi		YH, HIGH(matrix)
 	ldi		YL, LOW(matrix)
 
-	// Go to the correct version of the logo and draw it
+	// Go to the correct version of the icon and draw it
 	cpi		rArgument0L, 0
-	brne	snakeLogoAlt
+	brne	snakeIconAlt
 
-	// Draw the first version of the logo
+	// Draw the first version of the icon
 	ldi		rRowBits, 0b11111111
 	st		Y+, rRowBits
 	ldi		rRowBits, 0b10000001
@@ -1599,8 +1535,8 @@ drawSnakeLogo:
 
 	ret									// Return
 
-snakeLogoAlt:
-	// Draw the second version of the logo
+snakeIconAlt:
+	// Draw the second version of the icon
 	ldi		rRowBits, 0b11111111
 	st		Y+, rRowBits
 	ldi		rRowBits, 0b10000001
@@ -1621,15 +1557,15 @@ snakeLogoAlt:
 	ret									// Return
 
 		.UNDEF	rRowBits
-/* drawSnakeLogo end */	
+/* drawSnakeIcon end */	
 
 
 
 /**
- * Draws the logo for the program 'Maze Game', alternating between two different frames.
+ * Draws the icon for the program 'Tetris', alternating between two different frames.
  * @param rArgument0L - Which of the two frames that is draw
  */
-drawMazeLogo:
+drawTetrisIcon:
 		/* Register used for the pixels in a row */
 		.DEF	rRowBits	= r18
 
@@ -1637,45 +1573,45 @@ drawMazeLogo:
 	ldi		YH, HIGH(matrix)
 	ldi		YL, LOW(matrix)
 
-	// Go to the correct version of the logo and draw it
+	// Go to the correct version of the icon and draw it
 	cpi		rArgument0L, 0
-	brne	mazeLogoAlt
+	brne	tetrisIconAlt
 
-	// Draw the first version of the logo
+	// Draw the first version of the icon
 	ldi		rRowBits, 0b11111111
 	st		Y+, rRowBits
-	ldi		rRowBits, 0b11101001
+	ldi		rRowBits, 0b10010001
 	st		Y+, rRowBits
-	ldi		rRowBits, 0b10101101
+	ldi		rRowBits, 0b10110001
 	st		Y+, rRowBits
-	ldi		rRowBits, 0b10101001
+	ldi		rRowBits, 0b10010001
 	st		Y+, rRowBits
-	ldi		rRowBits, 0b10000011
+	ldi		rRowBits, 0b11000001
 	st		Y+, rRowBits
-	ldi		rRowBits, 0b11011001
+	ldi		rRowBits, 0b11000101
 	st		Y+, rRowBits
-	ldi		rRowBits, 0b10000101
+	ldi		rRowBits, 0b11101111
 	st		Y+, rRowBits
 	ldi		rRowBits, 0b11111111
 	st		Y+, rRowBits
 
 	ret									// Return
 
-mazeLogoAlt:
-	// Draw the second version of the logo
+tetrisIconAlt:
+	// Draw the second version of the icon
 	ldi		rRowBits, 0b11111111
 	st		Y+, rRowBits
-	ldi		rRowBits, 0b10101001
+	ldi		rRowBits, 0b10000001
 	st		Y+, rRowBits
-	ldi		rRowBits, 0b11101101
+	ldi		rRowBits, 0b10000001
 	st		Y+, rRowBits
-	ldi		rRowBits, 0b10101001
+	ldi		rRowBits, 0b10111001
 	st		Y+, rRowBits
-	ldi		rRowBits, 0b10000011
+	ldi		rRowBits, 0b11010001
 	st		Y+, rRowBits
-	ldi		rRowBits, 0b11011001
+	ldi		rRowBits, 0b11000101
 	st		Y+, rRowBits
-	ldi		rRowBits, 0b10000101
+	ldi		rRowBits, 0b11101111
 	st		Y+, rRowBits
 	ldi		rRowBits, 0b11111111
 	st		Y+, rRowBits
@@ -1683,16 +1619,16 @@ mazeLogoAlt:
 	ret									// Return
 
 		.UNDEF	rRowBits
-/* drawMazeLogo end */	
+/* drawTetrisIcon end */	
 
 
 
 
 /**
- * Draws the logo for the program 'Asteroids', alternating between two different frames.
+ * Draws the icon for the program 'Asteroids', alternating between two different frames.
  * @param rArgument0L - Which of the two frames that is draw
  */
-drawAsteroidsLogo:
+drawAsteroidsIcon:
 		/* Register used for the pixels in a row */
 		.DEF	rRowBits	= r18
 
@@ -1700,11 +1636,11 @@ drawAsteroidsLogo:
 	ldi		YH, HIGH(matrix)
 	ldi		YL, LOW(matrix)
 
-	// Go to the correct version of the logo and draw it
+	// Go to the correct version of the icon and draw it
 	cpi		rArgument0L, 0
-	brne	asteroidsLogoAlt
+	brne	asteroidsIconAlt
 
-	// Draw the first version of the logo
+	// Draw the first version of the icon
 	ldi		rRowBits, 0b11111111
 	st		Y+, rRowBits
 	ldi		rRowBits, 0b10001001
@@ -1724,8 +1660,8 @@ drawAsteroidsLogo:
 
 	ret									// Return
 
-asteroidsLogoAlt:
-	// Draw the second version of the logo
+asteroidsIconAlt:
+	// Draw the second version of the icon
 	ldi		rRowBits, 0b11111111
 	st		Y+, rRowBits
 	ldi		rRowBits, 0b11000001
@@ -1746,15 +1682,15 @@ asteroidsLogoAlt:
 	ret									// Return
 
 		.UNDEF	rRowBits
-/* drawAsteroidsLogo end */	
+/* drawAsteroidsIcon end */	
 
 
 
 /**
- * Draws the logo for the program 'Timer', alternating between two different frames.
+ * Draws the icon for the program 'Timer', alternating between two different frames.
  * @param rArgument0L - Which of the two frames that is draw
  */
-drawTimerLogo:
+drawTimerIcon:
 		/* Register used for the pixels in a row */
 		.DEF	rRowBits	= r18
 
@@ -1762,11 +1698,11 @@ drawTimerLogo:
 	ldi		YH, HIGH(matrix)
 	ldi		YL, LOW(matrix)
 
-	// Go to the correct version of the logo and draw it
+	// Go to the correct version of the icon and draw it
 	cpi		rArgument0L, 0
-	brne	timerLogoAlt
+	brne	timerIconAlt
 
-	// Draw the first version of the logo
+	// Draw the first version of the icon
 	ldi		rRowBits, 0b11111111
 	st		Y+, rRowBits
 	ldi		rRowBits, 0b10000001
@@ -1786,8 +1722,8 @@ drawTimerLogo:
 
 	ret									// Return
 
-timerLogoAlt:
-	// Draw the second version of the logo
+timerIconAlt:
+	// Draw the second version of the icon
 	ldi		rRowBits, 0b11111111
 	st		Y+, rRowBits
 	ldi		rRowBits, 0b10000001
@@ -1808,15 +1744,15 @@ timerLogoAlt:
 	ret									// Return
 
 		.UNDEF	rRowBits
-/* drawTimerLogo end */	
+/* drawTimerIcon end */	
 
 
 
 /**
- * Draws the logo for the program 'Random', alternating between two different frames.
+ * Draws the icon for the program 'Random', alternating between two different frames.
  * @param rArgument0L - Which of the two frames that is draw
  */
-drawRandomLogo:
+drawRandomIcon:
 		/* Register used for the pixels in a row */
 		.DEF	rRowBits	= r18
 
@@ -1824,11 +1760,11 @@ drawRandomLogo:
 	ldi		YH, HIGH(matrix)
 	ldi		YL, LOW(matrix)
 
-	// Go to the correct version of the logo and draw it
+	// Go to the correct version of the icon and draw it
 	cpi		rArgument0L, 0
-	brne	randomLogoAlt
+	brne	randomIconAlt
 
-	// Draw the first version of the logo
+	// Draw the first version of the icon
 	ldi		rRowBits, 0b11111111
 	st		Y+, rRowBits
 	ldi		rRowBits, 0b10001001
@@ -1848,8 +1784,8 @@ drawRandomLogo:
 
 	ret									// Return
 
-randomLogoAlt:
-	// Draw the second version of the logo
+randomIconAlt:
+	// Draw the second version of the icon
 	ldi		rRowBits, 0b11111111
 	st		Y+, rRowBits
 	ldi		rRowBits, 0b10100101
@@ -1870,16 +1806,16 @@ randomLogoAlt:
 	ret									// Return
 
 		.UNDEF	rRowBits
-/* drawRandomLogo end */	
+/* drawRandomIcon end */	
 
 
 
 
 /**
- * Draws the logo for the program 'Render Joystick', alternating between two different frames.
+ * Draws the icon for the program 'Render Joystick', alternating between two different frames.
  * @param rArgument0L - Which of the two frames that is draw
  */
-drawJoystickLogo:
+drawJoystickIcon:
 		/* Register used for the pixels in a row */
 		.DEF	rRowBits	= r18
 
@@ -1887,11 +1823,11 @@ drawJoystickLogo:
 	ldi		YH, HIGH(matrix)
 	ldi		YL, LOW(matrix)
 
-	// Go to the correct version of the logo and draw it
+	// Go to the correct version of the icon and draw it
 	cpi		rArgument0L, 0
-	brne	joystickLogoAlt
+	brne	joystickIconAlt
 
-	// Draw the first version of the logo
+	// Draw the first version of the icon
 	ldi		rRowBits, 0b11111111
 	st		Y+, rRowBits
 	ldi		rRowBits, 0b10000001
@@ -1911,8 +1847,8 @@ drawJoystickLogo:
 
 	ret									// Return
 
-joystickLogoAlt:
-	// Draw the second version of the logo
+joystickIconAlt:
+	// Draw the second version of the icon
 	ldi		rRowBits, 0b11111111
 	st		Y+, rRowBits
 	ldi		rRowBits, 0b10000001
@@ -1933,7 +1869,7 @@ joystickLogoAlt:
 	ret									// Return
 
 		.UNDEF	rRowBits
-/* drawJoystickLogo end */	
+/* drawJoystickIcon end */	
 
 
 
@@ -2087,7 +2023,6 @@ setPixel:
 		.DEF	rRowMask	= r20
 		.DEF	rZero		= r21
 
-	// Load the matrix adress into 16 bit register Y (LOW + HIGH)
 	mov		rColumn,	rArgument0L
 	mov		rRow,		rArgument1L
 
@@ -2097,18 +2032,21 @@ setPixel:
 	cpi		rColumn, 8
 	brlo	setValidPixel
 	call	terminate
-setValidPixel:
 
+setValidPixel:
 	// convert value to mask
 	ldi		rRowMask, 0b10000000
+
 setPixelColumnShiftLoop:
 	cpi		rColumn, 0
 	breq	setPixelColumnShiftEnd
 	subi	rColumn, 1
 	lsr		rRowMask
 	jmp		setPixelColumnShiftLoop
+
 setPixelColumnShiftEnd:
 
+	// Load the matrix adress into 16 bit register Y (LOW + HIGH)
 	ldi		YH, HIGH(matrix)
 	ldi		YL, LOW(matrix)
 	ldi		rZero, 0
@@ -2400,6 +2338,72 @@ exitRenderloop:
 
 	ret
 /* render end */
+
+
+
+
+/**
+ * Generate a random 3 bit value based on the noise in the joystick as well as the 
+ * current timer value. It's possible to choose which axis the joystick noise is 
+ * based on and subsequent calls to this function should use different axes to ensure
+ * independent results. The higher the bit, the more random it is.
+ * @param rArgument0L - Which joystick axis to base the randomization on (constants JOYSTICK_X_AXIS and JOYSTICK_Y_AXIS)
+ * @return rReturnL - A random value in the range 0 - 7 (3bit)
+ */
+ generateRandom3BitValue:
+	call	generateRandom4BitValue		// Generate a 4 bit value
+	lsr		rReturnL					// Drop the last, least random bit
+	
+	ret
+/* generateRandom3BitValue end */
+
+
+/**
+ * Generate a random 4 bit value based on the noise in the joystick as well as the 
+ * current timer value. It's possible to choose which axis the joystick noise is 
+ * based on and subsequent calls to this function should use different axes to ensure
+ * independent results. The higher the bit, the more random it is.
+ * @param rArgument0L - Which joystick axis to base the randomization on (constants JOYSTICK_X_AXIS and JOYSTICK_Y_AXIS)
+ * @return rReturnL - A random value in the range 0 - 15 (4bit)
+ */
+generateRandom4BitValue:
+
+		.DEF	rRandomNumber = r18
+		.DEF	rTimerValueL  = r19
+		.DEF	rOutputValue  = r20
+
+	// Get a 10 bit value (2 bytes) from the joystick based on the argument to this subroutine
+	call	readJoystick
+	mov		rRandomNumber, rReturnL
+
+	// Add the lower part of the timer value to the random number to give additional noise
+	lds		rTimerValueL, TCNT2
+	add		rRandomNumber, rTimerValueL
+
+	// Reverses the order of the 4 lowest bits and discards the rest
+	ldi		rOutputValue, 0
+
+	bst		rRandomNumber, 0
+	bld		rOutputValue, 3
+
+	bst		rRandomNumber, 1
+	bld		rOutputValue, 2
+
+	bst		rRandomNumber, 2
+	bld		rOutputValue, 1
+
+	bst		rRandomNumber, 3
+	bld		rOutputValue, 0
+
+	mov rReturnL, rOutputValue
+		
+		.UNDEF	rRandomNumber
+		.UNDEF	rTimerValueL
+		.UNDEF	rOutputValue
+	
+	ret
+/* generateRandom4BitValue end */
+
 
 
 
@@ -2819,78 +2823,39 @@ initializeProgram:
 
 
 /**
- * Initialize the hardware
+ * Display a graphical menu that can be used to select program. Programs are represented by icons
+ * that flicker between two different frames and by moving the joystick left or right, the programs
+ * can be cycled. Moving the joystick up or down selects the program.
  */
-init:
-		/* rAddressH/L */
-		.DEF	rAddressL	= r18
-		.DEF	rAddressH	= r19
-
-	// Initialize stack pointer
-	ldi		rAddressH, HIGH(RAMEND)
-	out		SPH, rAddressH
-	ldi		rAddressL, LOW(RAMEND)
-	out		SPL, rAddressL
-		
-		.UNDEF	rAddressL
-		.UNDEF	rAddressH
-
-	// Set row bits as output bits
-	sbi		DDRC, 0	
-	sbi		DDRC, 1	
-	sbi		DDRC, 2	
-	sbi		DDRC, 3	
-	sbi		DDRD, 2	
-	sbi		DDRD, 3	
-	sbi		DDRD, 4	
-	sbi		DDRD, 5	
-
-	// Set column bits as output bits
-	sbi		DDRD, 6	
-	sbi		DDRD, 7	
-	sbi		DDRB, 0	
-	sbi		DDRB, 1	
-	sbi		DDRB, 2	
-	sbi		DDRB, 3	
-	sbi		DDRB, 4	
-	sbi		DDRB, 5
+programSelectMenu:
+		.DEF	rProgramCount = r2
+		.DEF	rProgramIndex = r3
 	
-	// Set X/Y joystick as input bit
-	cbi		DDRC, 4				// PORTC4 aka Y axis
-	cbi		DDRC, 5				// PORTC5 aka X axis
+	initializeTimeri
 
-		/* Temporary value for modifying the ADMUX state */
-		.DEF	rTempValue	= r18
+	// Load the program count
+	ldi		YL, LOW(programCount)
+	ldi		YH, HIGH(programCount)
+	ld		rProgramCount, Y
 
-	// Initialize analog / digital converter
-	lds		rTempValue, ADMUX
-	sbr		rTempValue, 0b01000000
-	cbr		rTempValue, 0b10000000
-	sts		ADMUX, rTempValue
+	// Set the index to 0
+	ldi		rProgramIndex, 0
 
-	lds		rTempValue, ADCSRA
-	sbr		rTempValue, 0b10000111
-	sts		ADCSRA, rTempValue
 
-		.UNDEF	rTempValue
 
-	call	main				// call main (entry point)
-	call	terminate			// if returned from main, terminate
+		.UNDEF	rProgramIndex
+		.UNDEF	rProgramCount
+ret
+/* programSelectMenu end */
 
-	ret							// WARNING! IT SHOULD NEVER REACH THIS
-/* init end */
 
 
 
 /**
  * Entry point after the hardware has been initialized. Runs the code for a menu
- * where you cal select between different programs.
+ * where you can select between different programs.
  */
 main:
-
-		/* rColumn, rRow */
-		.DEF	rColumn			= r8
-		.DEF	rRow			= r9
 		.DEF	rProgramCount	= r18
 
 	// Initialize the program count 
@@ -2901,6 +2866,7 @@ main:
 
 		.UNDEF	rProgramCount
 
+	// Add programs
 	addProgrami 0, 0, snakeGame
 	addProgrami 5, 0, mazeGame
 	addProgrami 7, 0, asteroids
@@ -2910,8 +2876,15 @@ main:
 	addProgrami 5, 7, fillBoard
 	addProgrami 7, 7, randomPixelDraw
 
+	// Set the timer going
+	// call initializeHardwareTimer2		// TODO enable hardware timer in main subroutine
+
 mainLoop:
 	call	clearMatrix
+		
+		/* Column and row registers */
+		.DEF	rColumn			= r8
+		.DEF	rRow			= r9
 
 		/* Temp registers */
 		.DEF	rTemp = r2
@@ -2926,7 +2899,7 @@ mainLoop:
 	call	readJoystick		
 
 	// Convert 10 bit value to 8 bit, discarding lowest 2 bits
-	call	joystickValueTo8Bit				// Return values from the previous call correspond to the correct argument registers
+	call	joystickValueTo8Bit				// Skip loading arguments, since the previous call assigned them to the correct registers already
 	mov		rColumn, rReturnL
 
 	// right shift some more to make the value 3 bits (row 0-7)
@@ -2940,13 +2913,9 @@ mainLoop:
 	// Read Y axis
 	ldi		rArgument0L, JOYSTICK_Y_AXIS
 	call	readJoystick
-	mov		rJoystickL, rReturnL	// Store joystick input value
-	mov		rJoystickH, rReturnH
 
 	// Convert 10 bit value to 8 bit, discarding lowest 2 bits
-	mov		rArgument0L, rJoystickL
-	mov		rArgument0H, rJoystickH
-	call	joystickValueTo8Bit
+	call	joystickValueTo8Bit				// Skip loading arguments, since the previous call assigned them to the correct registers already
 	mov		rRow, rReturnL
 
 		.UNDEF	rJoystickL
@@ -2960,6 +2929,7 @@ mainLoop:
 	sub		rTempI, rRow
 	mov		rRow, rTempI
 
+	// Draw the "cursor"
 	setPixelr	rColumn, rRow
 
 		.UNDEF	rTemp
@@ -3011,6 +2981,70 @@ mainLoopEnd:
 
 	ret							// if program returned, exit main
 /* main end */
+
+
+
+/**
+ * Initialize the hardware
+ */
+init:
+		/* rAddressH/L */
+		.DEF	rAddressL	= r18
+		.DEF	rAddressH	= r19
+
+	// Initialize stack pointer
+	ldi		rAddressH, HIGH(RAMEND)
+	out		SPH, rAddressH
+	ldi		rAddressL, LOW(RAMEND)
+	out		SPL, rAddressL
+		
+		.UNDEF	rAddressL
+		.UNDEF	rAddressH
+
+	// Set row bits as output bits
+	sbi		DDRC, 0	
+	sbi		DDRC, 1	
+	sbi		DDRC, 2	
+	sbi		DDRC, 3	
+	sbi		DDRD, 2	
+	sbi		DDRD, 3	
+	sbi		DDRD, 4	
+	sbi		DDRD, 5	
+
+	// Set column bits as output bits
+	sbi		DDRD, 6	
+	sbi		DDRD, 7	
+	sbi		DDRB, 0	
+	sbi		DDRB, 1	
+	sbi		DDRB, 2	
+	sbi		DDRB, 3	
+	sbi		DDRB, 4	
+	sbi		DDRB, 5
+	
+	// Set X / Y joystick as input bit
+	cbi		DDRC, 4				// PORTC4 aka Y axis
+	cbi		DDRC, 5				// PORTC5 aka X axis
+
+		/* Temporary value for modifying the ADMUX and ADCSRA state */
+		.DEF	rTempValue	= r18
+
+	// Initialize analog / digital converter
+	lds		rTempValue, ADMUX
+	sbr		rTempValue, 0b01000000
+	cbr		rTempValue, 0b10000000
+	sts		ADMUX, rTempValue
+
+	lds		rTempValue, ADCSRA
+	sbr		rTempValue, 0b10000111
+	sts		ADCSRA, rTempValue
+
+		.UNDEF	rTempValue
+
+	call	main				// call main (entry point)
+	call	terminate			// if returned from main, terminate
+
+	ret							// WARNING! IT SHOULD NEVER REACH THIS
+/* init end */
 
 
 
