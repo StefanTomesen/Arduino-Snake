@@ -148,9 +148,9 @@
 	.EQU	RANDOM_DISPLAY_TIME			= 128
 
 	/* Tetris Game */
-	.EQU	TETRIS_UPDATE_TIME			= 32
+	.EQU	TETRIS_UPDATE_TIME			= 64
 	.EQU	TETRIS_SPEED_UPDATE_TIME	= TETRIS_UPDATE_TIME / 4
-	.EQU	TETRIS_JOYSTICK_UPDATE_TIME	= 12
+	.EQU	TETRIS_JOYSTICK_UPDATE_TIME	= 16
 
 
 	/** 
@@ -299,10 +299,10 @@
 	.ENDMACRO
 	
 	/**
-	 * ???
-	 * @param @0 - ???
-	 * @param @1 - ???
-	 * @param @2 - ???
+	 * Add programs to the main menu
+	 * @param @0 - the X position of the program pixel
+	 * @param @1 - the Y position of the program pixel
+	 * @param @2 - the label of the program subroutine
 	 */
 	.MACRO	addProgrami
 		ldi		rArgument0L, @0			// X
@@ -313,11 +313,12 @@
 	.ENDMACRO
 	
 	/**
-	 * ???
-	 * @param @0 - ???
-	 * @param @1 - ???
-	 * @param @2 - ???
-	 * @param @3 - ???
+	 * Determines whether two positions intersect
+	 * @param @0 - The X coordinate of the first position
+	 * @param @1 - The Y coordinate of the first position
+	 * @param @2 - The X coordinate of the second position
+	 * @param @3 - The Y coordinate of the second position
+	 * @return rReturnL - Whether or not the points intersect (boolean)
 	 */
 	.MACRO	checkCollisionr
 		mov		rArgument0L, @0			// X
@@ -328,11 +329,12 @@
 	.ENDMACRO
 	
 	/**
-	 * ???
-	 * @param @0 - ???
-	 * @param @1 - ???
-	 * @param @2 - ???
-	 * @param @3 - ???
+	 * Determines whether two positions intersect
+	 * @param @0 - The X coordinate of the first position
+	 * @param @1 - The Y coordinate of the first position
+	 * @param @2 - The X coordinate of the second position
+	 * @param @3 - The Y coordinate of the second position
+	 * @return rReturnL - Whether or not the points intersect (boolean)
 	 */	
 	.MACRO	checkCollisioni
 		ldi		rArgument0L, @0			// X
@@ -411,16 +413,16 @@ timer0OverflowInterupt:
 
 
 /**
- * Handle overflow interupts from timer 1
+ * Handle overflow interupts from timer 2
  */
 timer2OverflowInterupt:
 	
 		.DEF	rStatus		= r18
 
-	// save status
-	push	rStatus						// save register
+	// Save the status
+	push	rStatus						// push register r18
 	in		rStatus, SREG				
-	push	rStatus
+	push	rStatus						// push status register
 		
 		.UNDEF	rStatus
 		
@@ -453,10 +455,10 @@ timer2OverflowInterupt:
 	
 		.DEF	rStatus		= r18
 
-	// restore status
-	pop		rStatus
-	out		SREG, rStatus
-	pop		rStatus						// restore register
+	// Restore status
+	pop		rStatus						
+	out		SREG, rStatus				// Restore the status register
+	pop		rStatus						// Restore register r18
 		
 		.UNDEF	rStatus
 
@@ -466,7 +468,7 @@ timer2OverflowInterupt:
 
 
  /******************************************************************************************
- * Program: TimerTest
+ * Program: Timer Test
  * Start runing the timer test
  *****************************************************************************************/
 timerTest:
@@ -554,7 +556,7 @@ timerTestLoop:
 
 
  /******************************************************************************************
- * Program: randomPixelDraw
+ * Program: Random Pixel Test
  * Draws a number of random pixelels
  *****************************************************************************************/
 randomPixelDraw:	
@@ -874,7 +876,7 @@ snakeEndRender:
 	checkTimeri updateTimer			// Returns boolean whether the timer has reached it's target time and reset	
 	cpi		rReturnL, 1
 	breq	snakeEndUpdate			// If an update was recieved, blink
-	jmp		snakeEndRender		// If an update didn't occur, render and wait some more
+	jmp		snakeEndRender			// If an update didn't occur, render and wait some more
 
 snakeEndUpdate:
 
@@ -1293,7 +1295,7 @@ clearSnakeTail:
 		.UNDEF	rZero	
 
 	ret
-/* drawSnakeHead end */
+/* clearSnakeTail end */
 
 
 
@@ -1937,7 +1939,6 @@ tetrisGenerateNextBlock:
 	ldi		YH, HIGH(tetris)
 
 	// Store type
-	ldi		rReturnL, TETRIS_T_BLOCK		// TEMP
 	std		Y + oTetrisBlockType, rReturnL
 
 	// Reset position and rotation
@@ -2390,7 +2391,7 @@ isPixelNotClearReturn:
 
 /******************************************************************************************
  * Program: Asteroids																	  *
- * ASTEROIDS!																			  *
+ * The classical game of asteroids														  *
  *****************************************************************************************/
 asteroids:
 
@@ -2462,7 +2463,7 @@ renderJoystickLoop:
 	lsr5	rTemp
 	mov		rColumn, rTemp
 
-	// rverse order rColumn (7-0 -> 0-7)
+	// reverse order rColumn (7-0 -> 0-7)
 	ldi		rTempI, 7
 	sub		rTempI, rColumn
 	mov		rColumn, rTempI
@@ -2510,49 +2511,6 @@ renderJoystickLoop:
 /* renderJoystick end */
 
 
-
-/**
- * Generate a random 3 bit value based on the noise in the joystick as well as the 
- * current timer value. It's possible to choose which axis the joystick noise is 
- * based on and subsequent calls to this functino should use different axes to ensure
- * independent results.
- * @param rArgument0L - Which joystick axis to base the randomization on (constants JOYSTICK_X_AXIS and JOYSTICK_Y_AXIS)
- * @return rReturnL - A random value in the range 0 - 7 (3bit)
- */
-generateRandom3BitValue:
-
-		.DEF	rRandomNumber = r18
-		.DEF	rTimerValueL = r19
-
-	// Get a 10 bit value (2 bytes) from the joystick based on the argument to this subroutine
-	call	readJoystick
-	mov		rRandomNumber, rReturnL
-
-	// Add the lower part of the timer value to the random number to give additional noise
-	lds		rTimerValueL, TCNT2
-	add		rRandomNumber, rTimerValueL
-
-	// Reverses the order of the 3 lowest bits
-	bst		rRandomNumber, 0
-	bld		rRandomNumber, 7
-	bst		rRandomNumber, 2
-	bld		rRandomNumber, 0
-	bst		rRandomNumber, 7
-	bld		rRandomNumber, 2
-
-	// Mask out the 3 lowest bits we're interested in
-	andi	rRandomNumber, 0b00000111
-
-	mov rReturnL, rRandomNumber
-		
-		.UNDEF	rRandomNumber
-		.UNDEF	rTimerValueL
-	
-	ret
-/* generateRandom3BitValue end */
-
-
-
 /**
  * Determines whether two positions intersect
  * @param rArgument0L - The X coordinate of the first position
@@ -2581,6 +2539,707 @@ skipCollidedWithFood:
 		.UNDEF	rHasCollided
 	ret
 /* checkCollision end */
+
+
+
+/**
+ * Draws the icon for the program 'Snake Game', alternating between two different frames.
+ * @param rArgument0L - Which of the two frames that is draw
+ */
+drawSnakeIcon:
+		/* Register used for the pixels in a row */
+		.DEF	rRowBits	= r18
+
+	// Get a pointer to the matrix
+	ldi		YH, HIGH(matrix)
+	ldi		YL, LOW(matrix)
+
+	// Go to the correct version of the icon and draw it
+	cpi		rArgument0L, 0
+	brne	snakeIconAlt
+
+	// Draw the first version of the icon
+	ldi		rRowBits, 0b11111111
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b10000001
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b10100101
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b10100001
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b10100001
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b10111001
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b10000001
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b11111111
+	st		Y+, rRowBits
+
+	ret									// Return
+
+snakeIconAlt:
+	// Draw the second version of the icon
+	ldi		rRowBits, 0b11111111
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b10000001
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b10110101
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b10100001
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b10100001
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b10110001
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b10000001
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b11111111
+	st		Y+, rRowBits
+
+	ret									// Return
+
+		.UNDEF	rRowBits
+/* drawSnakeIcon end */	
+
+
+
+/**
+ * Draws the icon for the program 'Tetris', alternating between two different frames.
+ * @param rArgument0L - Which of the two frames that is draw
+ */
+drawTetrisIcon:
+		/* Register used for the pixels in a row */
+		.DEF	rRowBits	= r18
+
+	// Get a pointer to the matrix
+	ldi		YH, HIGH(matrix)
+	ldi		YL, LOW(matrix)
+
+	// Go to the correct version of the icon and draw it
+	cpi		rArgument0L, 0
+	brne	tetrisIconAlt
+
+	// Draw the first version of the icon
+	ldi		rRowBits, 0b11111111
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b10010001
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b10110001
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b10010001
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b11000001
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b11000101
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b11101111
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b11111111
+	st		Y+, rRowBits
+
+	ret									// Return
+
+tetrisIconAlt:
+	// Draw the second version of the icon
+	ldi		rRowBits, 0b11111111
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b10000001
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b10000001
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b10111001
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b11010001
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b11000101
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b11101111
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b11111111
+	st		Y+, rRowBits
+
+	ret									// Return
+
+		.UNDEF	rRowBits
+/* drawTetrisIcon end */	
+
+
+
+
+/**
+ * Draws the icon for the program 'Asteroids', alternating between two different frames.
+ * @param rArgument0L - Which of the two frames that is draw
+ */
+drawAsteroidsIcon:
+		/* Register used for the pixels in a row */
+		.DEF	rRowBits	= r18
+
+	// Get a pointer to the matrix
+	ldi		YH, HIGH(matrix)
+	ldi		YL, LOW(matrix)
+
+	// Go to the correct version of the icon and draw it
+	cpi		rArgument0L, 0
+	brne	asteroidsIconAlt
+
+	// Draw the first version of the icon
+	ldi		rRowBits, 0b11111111
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b10001001
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b10100001
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b10000001
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b10110011
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b10100001
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b10000001
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b11111111
+	st		Y+, rRowBits
+
+	ret									// Return
+
+asteroidsIconAlt:
+	// Draw the second version of the icon
+	ldi		rRowBits, 0b11111111
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b11000001
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b10000101
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b10000001
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b10110001
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b10100101
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b10000001
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b11111111
+	st		Y+, rRowBits
+
+	ret									// Return
+
+		.UNDEF	rRowBits
+/* drawAsteroidsIcon end */	
+
+
+
+/**
+ * Draws the icon for the program 'Timer', alternating between two different frames.
+ * @param rArgument0L - Which of the two frames that is draw
+ */
+drawTimerIcon:
+		/* Register used for the pixels in a row */
+		.DEF	rRowBits	= r18
+
+	// Get a pointer to the matrix
+	ldi		YH, HIGH(matrix)
+	ldi		YL, LOW(matrix)
+
+	// Go to the correct version of the icon and draw it
+	cpi		rArgument0L, 0
+	brne	timerIconAlt
+
+	// Draw the first version of the icon
+	ldi		rRowBits, 0b11111111
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b10000001
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b11010011
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b11101111
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b11110111
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b11000011
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b10011001
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b11111111
+	st		Y+, rRowBits
+
+	ret									// Return
+
+timerIconAlt:
+	// Draw the second version of the icon
+	ldi		rRowBits, 0b11111111
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b10000001
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b11000011
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b11100111
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b11100111
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b11010011
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b10111101
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b11111111
+	st		Y+, rRowBits
+
+	ret									// Return
+
+		.UNDEF	rRowBits
+/* drawTimerIcon end */	
+
+
+
+/**
+ * Draws the icon for the program 'Random', alternating between two different frames.
+ * @param rArgument0L - Which of the two frames that is draw
+ */
+drawRandomIcon:
+		/* Register used for the pixels in a row */
+		.DEF	rRowBits	= r18
+
+	// Get a pointer to the matrix
+	ldi		YH, HIGH(matrix)
+	ldi		YL, LOW(matrix)
+
+	// Go to the correct version of the icon and draw it
+	cpi		rArgument0L, 0
+	brne	randomIconAlt
+
+	// Draw the first version of the icon
+	ldi		rRowBits, 0b11111111
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b10001001
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b11000101
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b10110101
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b10100001
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b11001011
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b10010101
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b11111111
+	st		Y+, rRowBits
+
+	ret									// Return
+
+randomIconAlt:
+	// Draw the second version of the icon
+	ldi		rRowBits, 0b11111111
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b10100101
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b10010001
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b11000011
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b10001001
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b10100101
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b10001011
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b11111111
+	st		Y+, rRowBits
+
+	ret									// Return
+
+		.UNDEF	rRowBits
+/* drawRandomIcon end */	
+
+
+
+
+/**
+ * Draws the icon for the program 'Render Joystick', alternating between two different frames.
+ * @param rArgument0L - Which of the two frames that is draw
+ */
+drawJoystickIcon:
+		/* Register used for the pixels in a row */
+		.DEF	rRowBits	= r18
+
+	// Get a pointer to the matrix
+	ldi		YH, HIGH(matrix)
+	ldi		YL, LOW(matrix)
+
+	// Go to the correct version of the icon and draw it
+	cpi		rArgument0L, 0
+	brne	joystickIconAlt
+
+	// Draw the first version of the icon
+	ldi		rRowBits, 0b11111111
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b10000001
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b10011001
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b10011001
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b10011001
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b10111101
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b10000001
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b11111111
+	st		Y+, rRowBits
+
+	ret									// Return
+
+joystickIconAlt:
+	// Draw the second version of the icon
+	ldi		rRowBits, 0b11111111
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b10000001
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b10000111
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b10001101
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b10011001
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b10111101
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b10000001
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b11111111
+	st		Y+, rRowBits
+
+	ret									// Return
+
+		.UNDEF	rRowBits
+/* drawJoystickIcon end */	
+
+
+
+
+/**
+ * Set the bits in the matrix with a smiley
+ */
+drawSnakeHeadMatrix:
+		/* Register used for the pixels in a row */
+		.DEF	rRowBits	= r18
+
+	// Initialize the matrix with a smiley set
+	ldi		YH, HIGH(matrix)	// Set Y to matrix address
+	ldi		YL, LOW(matrix)
+	ldi		rRowBits, 0b11100111
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b10111101
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b11111111
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b10100101
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b10100101
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b11000011
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b01100110
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b00111100
+	st		Y+, rRowBits
+
+		.UNDEF	rRowBits
+
+	ret
+/* drawSnakeHeadMatrix end */	
+
+
+
+
+/**
+ * Set the bits in the matrix with a smiley
+ */
+drawSmileyMatrix:
+		/* Register used for the pixels in a row */
+		.DEF	rRowBits	= r18
+
+	// Initialize the matrix with a smiley set
+	ldi		YH, HIGH(matrix)	// Set Y to matrix address
+	ldi		YL, LOW(matrix)
+	ldi		rRowBits, 0b10000001
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b00100100
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b00100100
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b00011000
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b01000010
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b01000010
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b00111100
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b10000001
+	st		Y+, rRowBits
+
+		.UNDEF	rRowBits
+
+	ret
+/* drawSmileyMatrix end */	
+
+
+
+/**
+ * Set the bits in the matrix with a templarMatrix
+ */
+drawTemplarMatrix:
+		/* Register used for the pixels in a row */
+		.DEF	rRowBits	= r18
+
+	// Initialize the matrix with a templar cross symbol
+	ldi		YH, HIGH(matrix)	// Set Y to matrix address
+	ldi		YL, LOW(matrix)
+	ldi		rRowBits, 0b11011111
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b11011111
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b11011111
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b11011111
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b00000000
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b11011111
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b00000000
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b11011111
+	st		Y+, rRowBits
+
+		.UNDEF	rRowBits
+
+	ret
+/* drawTemplarMatrix end */	
+
+
+
+/**
+ * Set the bits in the matrix with a skull
+ */
+drawSkullMatrix:
+		/* Register used for the pixels in a row */
+		.DEF	rRowBits	= r18
+
+	// Initialize the matrix with a skull
+	ldi		YH, HIGH(matrix)	// Set Y to matrix address
+	ldi		YL, LOW(matrix)
+	ldi		rRowBits, 0b01111110 
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b11111111
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b10011001
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b11111111
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b11111111
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b01111110 
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b01011010
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b00000000
+	st		Y+, rRowBits
+
+		.UNDEF	rRowBits
+
+	ret
+/* drawSkullMatrix end */	
+
+
+
+
+/**
+ * Draws a pixel in the matrix at the sepcified location
+ * @param rArgument0L - The column (X) of the pixel
+ * @param rArgument1L - The row (Y) of the pixel
+ */
+setPixel:
+		.DEF	rRow		= r18
+		.DEF	rColumn		= r19
+		.DEF	rRowMask	= r20
+		.DEF	rZero		= r21
+
+	mov		rColumn,	rArgument0L
+	mov		rRow,		rArgument1L
+
+	// Assert coordinates X & Y < 8 (unsigned)
+	cpi		rRow, 8
+	brlo	setValidPixel
+	cpi		rColumn, 8
+	brlo	setValidPixel
+	call	terminate
+
+setValidPixel:
+	// convert value to mask
+	ldi		rRowMask, 0b10000000
+
+setPixelColumnShiftLoop:
+	cpi		rColumn, 0
+	breq	setPixelColumnShiftEnd
+	subi	rColumn, 1
+	lsr		rRowMask
+	jmp		setPixelColumnShiftLoop
+
+setPixelColumnShiftEnd:
+
+	// Load the matrix adress into 16 bit register Y (LOW + HIGH)
+	ldi		YH, HIGH(matrix)
+	ldi		YL, LOW(matrix)
+	ldi		rZero, 0
+	add		YL,	rRow
+	adc		YH, rZero
+	ld		rRow, Y
+	or		rRow, rRowMask
+	st		Y, rRow
+
+		.UNDEF	rRow
+		.UNDEF	rColumn
+		.UNDEF	rRowMask
+		.UNDEF	rZero
+
+	ret
+/* setPixel end */
+
+
+
+/**
+ * Clears a pixel in the matrix at the sepcified location
+ * @param rArgument0L - The column (X) of the pixel
+ * @param rArgument1L - The row (Y) of the pixel
+ */
+clearPixel:
+		.DEF	rRow		= r18
+		.DEF	rColumn		= r19
+		.DEF	rRowMask	= r20
+		.DEF	rLocalTemp	= r21
+
+	// Load the matrix adress into 16 bit register Y (LOW + HIGH)
+	mov		rColumn,	rArgument0L
+	mov		rRow,		rArgument1L
+
+	// convert value to mask
+	ldi		rRowMask, 0b10000000
+clearPixelcolumnShiftLoop:
+	cpi		rColumn, 0
+	breq	clearPixelcolumnShiftEnd
+	subi	rColumn, 1
+	lsr		rRowMask
+	jmp		clearPixelcolumnShiftLoop
+clearPixelcolumnShiftEnd:
+	
+	// Invert row mask in order to clear
+	com		rRowMask
+
+	ldi		YH, HIGH(matrix)
+	ldi		YL, LOW(matrix)
+	ldi		rLocalTemp, 0
+	add		YL,	rRow
+	adc		YH, rLocalTemp
+	ld		rRow, Y
+	and		rRow, rRowMask
+	st		Y, rRow
+
+		.UNDEF	rRow
+		.UNDEF	rColumn
+		.UNDEF	rRowMask
+		.UNDEF	rLocalTemp
+
+	ret
+/* clearPixel end */
+
+
+
+/**
+ * Inverts all the bits in the matrix
+ */
+invertMatrix:
+		/* Register used for the pixels in a row */
+		.DEF	rRowBits	= r18
+		.DEF	rIterator	= r19
+
+	// Load a pointer to the matrix
+	ldi		YH, HIGH(matrix)
+	ldi		YL, LOW(matrix)
+
+	// Loop through all the 8 rows
+	ldi		rIterator, 8
+invertRowBits:
+	// Invert one row byte
+	ld		rRowBits, Y			// Load bits
+	com		rRowBits			// Invert bits
+	st		Y+, rRowBits		// Store bits and increment the pointer
+
+	// Repeat for all the rows
+	dec		rIterator			
+	cpi		rIterator, 0
+	brne	invertRowBits
+
+		.UNDEF	rRowBits
+		.UNDEF	rIterator
+
+	ret
+/* invertMatrix end */
+
+
+
+/**
+ * Clear the matrix
+ */
+clearMatrix:
+		/* Register used for the pixels in a row */
+		.DEF	rRowBits	= r18
+
+	// clear the entire matrix
+	ldi		YH, HIGH(matrix)
+	ldi		YL, LOW(matrix)
+	clr		rRowBits
+	st		Y+, rRowBits
+	st		Y+, rRowBits
+	st		Y+, rRowBits
+	st		Y+, rRowBits
+	st		Y+, rRowBits
+	st		Y+, rRowBits
+	st		Y+, rRowBits
+	st		Y+, rRowBits
+
+		.UNDEF	rRowBits
+
+	ret
+/* clearMatrix end */
+
+
+
+/**
+ * Set all the bits in the matrix
+ */
+setMatrix:
+		/* Register used for the pixels in a row */
+		.DEF	rRowBits	= r18
+
+	// Initialize the matrix with a full set
+	ldi		YH, HIGH(matrix)	// Set Y to matrix address
+	ldi		YL, LOW(matrix)
+	ser		rRowBits
+	st		Y+, rRowBits
+	st		Y+, rRowBits
+	st		Y+, rRowBits
+	st		Y+, rRowBits
+	st		Y+, rRowBits
+	st		Y+, rRowBits
+	st		Y+, rRowBits
+	st		Y+, rRowBits
+
+		.UNDEF	rRowBits
+
+	ret
+/* setMatrix end */
 
 
 
@@ -2725,6 +3384,72 @@ exitRenderloop:
 
 
 
+
+/**
+ * Generate a random 3 bit value based on the noise in the joystick as well as the 
+ * current timer value. It's possible to choose which axis the joystick noise is 
+ * based on and subsequent calls to this function should use different axes to ensure
+ * independent results. The higher the bit, the more random it is.
+ * @param rArgument0L - Which joystick axis to base the randomization on (constants JOYSTICK_X_AXIS and JOYSTICK_Y_AXIS)
+ * @return rReturnL - A random value in the range 0 - 7 (3bit)
+ */
+ generateRandom3BitValue:
+	call	generateRandom4BitValue		// Generate a 4 bit value
+	lsr		rReturnL					// Drop the last, least random bit
+	
+	ret
+/* generateRandom3BitValue end */
+
+
+/**
+ * Generate a random 4 bit value based on the noise in the joystick as well as the 
+ * current timer value. It's possible to choose which axis the joystick noise is 
+ * based on and subsequent calls to this function should use different axes to ensure
+ * independent results. The higher the bit, the more random it is.
+ * @param rArgument0L - Which joystick axis to base the randomization on (constants JOYSTICK_X_AXIS and JOYSTICK_Y_AXIS)
+ * @return rReturnL - A random value in the range 0 - 15 (4bit)
+ */
+generateRandom4BitValue:
+
+		.DEF	rRandomNumber = r18
+		.DEF	rTimerValueL  = r19
+		.DEF	rOutputValue  = r20
+
+	// Get a 10 bit value (2 bytes) from the joystick based on the argument to this subroutine
+	call	readJoystick
+	mov		rRandomNumber, rReturnL
+
+	// Add the lower part of the timer value to the random number to give additional noise
+	lds		rTimerValueL, TCNT2
+	add		rRandomNumber, rTimerValueL
+
+	// Reverses the order of the 4 lowest bits and discards the rest
+	ldi		rOutputValue, 0
+
+	bst		rRandomNumber, 0
+	bld		rOutputValue, 3
+
+	bst		rRandomNumber, 1
+	bld		rOutputValue, 2
+
+	bst		rRandomNumber, 2
+	bld		rOutputValue, 1
+
+	bst		rRandomNumber, 3
+	bld		rOutputValue, 0
+
+	mov rReturnL, rOutputValue
+		
+		.UNDEF	rRandomNumber
+		.UNDEF	rTimerValueL
+		.UNDEF	rOutputValue
+	
+	ret
+/* generateRandom4BitValue end */
+
+
+
+
 /**
  * Load either the current X or Y value from joystick.
  * @param rArgument0L - The axis that is being read (constants JOYSTICK_X_AXIS and JOYSTICK_Y_AXIS)
@@ -2770,7 +3495,7 @@ readLoop:
 		.UNDEF	rADCSRA
 
 	ret
-/* loadJoystick end */
+/* readJoystick end */
 
 
 
@@ -2839,7 +3564,7 @@ readLoop:
 		.UNDEF	rJoystickX
 
 	ret
-/* joystickValueTo8Bit end */
+/* readJoystickDirection end */
 
 
 
@@ -2871,9 +3596,9 @@ joystickValueTo8Bit:
 
 
 /**
- * return the direction  depending on the joystick values
- * @param rArgument0L - X (0 - 255)
- * @param rArgument1L - Y (0 - 255)
+ * Get the current direction based on the joystick position. Diagonals are not allowed and count as neutral.
+ * @param rArgument0L - The 8 bit X position of the joystick (0 - 255)
+ * @param rArgument1L - The 8 bit Y position of the joystick (0 - 255)
  * @return rReturnL - Returns the joystick X direction (-1 is left, 0 is neutral, 1 is right)
  * @return rReturnH - Returns the joystick Y direction (-1 is up, 0 is neutral, 1 is down)
  */
@@ -3018,7 +3743,7 @@ checkTimer:
 		.DEF	rCompareL = r20
 		.DEF	rCompareH = r21
 
-	// Get pointer adress
+	// Get the pointer to the timer
 	mov		YL, rArgument0L
 	mov		YH, rArgument0H
 
@@ -3084,329 +3809,6 @@ checkTimerSkipReset:
 
 
 /**
- * Draws a pixel in the matrix at the sepcified location
- * @param rArgument0L - The column (X) of the pixel
- * @param rArgument1L - The row (Y) of the pixel
- */
-setPixel:
-		.DEF	rRow		= r18
-		.DEF	rColumn		= r19
-		.DEF	rRowMask	= r20
-		.DEF	rZero		= r21
-
-	// Load the matrix adress into 16 bit register Y (LOW + HIGH)
-	mov		rColumn,	rArgument0L
-	mov		rRow,		rArgument1L
-
-	// Assert coordinates X & Y < 8
-	cpi		rRow, 8
-	brlo	setValidPixel
-	cpi		rColumn, 8
-	brlo	setValidPixel
-	call	terminate
-setValidPixel:
-
-	// convert value to mask
-	ldi		rRowMask, 0b10000000
-setPixelColumnShiftLoop:
-	cpi		rColumn, 0
-	breq	setPixelColumnShiftEnd
-	subi	rColumn, 1
-	lsr		rRowMask
-	jmp		setPixelColumnShiftLoop
-setPixelColumnShiftEnd:
-
-	ldi		YH, HIGH(matrix)
-	ldi		YL, LOW(matrix)
-	ldi		rZero, 0
-	add		YL,	rRow
-	adc		YH, rZero
-	ld		rRow, Y
-	or		rRow, rRowMask
-	st		Y, rRow
-
-		.UNDEF	rRow
-		.UNDEF	rColumn
-		.UNDEF	rRowMask
-		.UNDEF	rZero
-
-	ret
-/* setPixel end */
-
-
-
-/**
- * Clears a pixel in the matrix at the sepcified location
- * @param rArgument0L - The column (X) of the pixel
- * @param rArgument1L - The row (Y) of the pixel
- */
-clearPixel:
-		.DEF	rRow		= r18
-		.DEF	rColumn		= r19
-		.DEF	rRowMask	= r20
-		.DEF	rLocalTemp	= r21
-
-	// Load the matrix adress into 16 bit register Y (LOW + HIGH)
-	mov		rColumn,	rArgument0L
-	mov		rRow,		rArgument1L
-
-	// convert value to mask
-	ldi		rRowMask, 0b10000000
-clearPixelcolumnShiftLoop:
-	cpi		rColumn, 0
-	breq	clearPixelcolumnShiftEnd
-	subi	rColumn, 1
-	lsr		rRowMask
-	jmp		clearPixelcolumnShiftLoop
-clearPixelcolumnShiftEnd:
-	
-	// Invert row mask in order to clear
-	com		rRowMask
-
-	ldi		YH, HIGH(matrix)
-	ldi		YL, LOW(matrix)
-	ldi		rLocalTemp, 0
-	add		YL,	rRow
-	adc		YH, rLocalTemp
-	ld		rRow, Y
-	and		rRow, rRowMask
-	st		Y, rRow
-
-		.UNDEF	rRow
-		.UNDEF	rColumn
-		.UNDEF	rRowMask
-		.UNDEF	rLocalTemp
-
-	ret
-/* clearPixel end */
-
-
-
-/**
- * Clear the matrix
- */
-clearMatrix:
-		/* Register used for the pixels in a row */
-		.DEF	rRowBits	= r18
-
-	// clear the entire matrix
-	ldi		YH, HIGH(matrix)
-	ldi		YL, LOW(matrix)
-	clr		rRowBits
-	st		Y+, rRowBits
-	st		Y+, rRowBits
-	st		Y+, rRowBits
-	st		Y+, rRowBits
-	st		Y+, rRowBits
-	st		Y+, rRowBits
-	st		Y+, rRowBits
-	st		Y+, rRowBits
-
-		.UNDEF	rRowBits
-
-	ret
-/* clearMatrix end */
-
-
-
-/**
- * Set all the bits in the matrix
- */
-setMatrix:
-		/* Register used for the pixels in a row */
-		.DEF	rRowBits	= r18
-
-	// Initialize the matrix with a full set
-	ldi		YH, HIGH(matrix)	// Set Y to matrix address
-	ldi		YL, LOW(matrix)
-	ser		rRowBits
-	st		Y+, rRowBits
-	st		Y+, rRowBits
-	st		Y+, rRowBits
-	st		Y+, rRowBits
-	st		Y+, rRowBits
-	st		Y+, rRowBits
-	st		Y+, rRowBits
-	st		Y+, rRowBits
-
-		.UNDEF	rRowBits
-
-	ret
-/* setMatrix end */
-
-
-
-/**
- * Set the bits in the matrix with a smiley
- */
-drawSnakeHeadMatrix:
-		/* Register used for the pixels in a row */
-		.DEF	rRowBits	= r18
-
-	// Initialize the matrix with a smiley set
-	ldi		YH, HIGH(matrix)	// Set Y to matrix address
-	ldi		YL, LOW(matrix)
-	ldi		rRowBits, 0b11100111
-	st		Y+, rRowBits
-	ldi		rRowBits, 0b10111101
-	st		Y+, rRowBits
-	ldi		rRowBits, 0b11111111
-	st		Y+, rRowBits
-	ldi		rRowBits, 0b10100101
-	st		Y+, rRowBits
-	ldi		rRowBits, 0b10100101
-	st		Y+, rRowBits
-	ldi		rRowBits, 0b11000011
-	st		Y+, rRowBits
-	ldi		rRowBits, 0b01100110
-	st		Y+, rRowBits
-	ldi		rRowBits, 0b00111100
-	st		Y+, rRowBits
-
-		.UNDEF	rRowBits
-
-	ret
-/* drawSnakeHeadMatrix end */	
-
-
-
-
-/**
- * Set the bits in the matrix with a smiley
- */
-drawSmileyMatrix:
-		/* Register used for the pixels in a row */
-		.DEF	rRowBits	= r18
-
-	// Initialize the matrix with a smiley set
-	ldi		YH, HIGH(matrix)	// Set Y to matrix address
-	ldi		YL, LOW(matrix)
-	ldi		rRowBits, 0b10000001
-	st		Y+, rRowBits
-	ldi		rRowBits, 0b00100100
-	st		Y+, rRowBits
-	ldi		rRowBits, 0b00100100
-	st		Y+, rRowBits
-	ldi		rRowBits, 0b00011000
-	st		Y+, rRowBits
-	ldi		rRowBits, 0b01000010
-	st		Y+, rRowBits
-	ldi		rRowBits, 0b01000010
-	st		Y+, rRowBits
-	ldi		rRowBits, 0b00111100
-	st		Y+, rRowBits
-	ldi		rRowBits, 0b10000001
-	st		Y+, rRowBits
-
-		.UNDEF	rRowBits
-
-	ret
-/* drawSmileyMatrix end */	
-
-
-
-/**
- * Set the bits in the matrix with a templarMatrix
- */
-drawTemplarMatrix:
-		/* Register used for the pixels in a row */
-		.DEF	rRowBits	= r18
-
-	// Initialize the matrix with a templar cross symbol
-	ldi		YH, HIGH(matrix)	// Set Y to matrix address
-	ldi		YL, LOW(matrix)
-	ldi		rRowBits, 0b11011111
-	st		Y+, rRowBits
-	ldi		rRowBits, 0b11011111
-	st		Y+, rRowBits
-	ldi		rRowBits, 0b11011111
-	st		Y+, rRowBits
-	ldi		rRowBits, 0b11011111
-	st		Y+, rRowBits
-	ldi		rRowBits, 0b00000000
-	st		Y+, rRowBits
-	ldi		rRowBits, 0b11011111
-	st		Y+, rRowBits
-	ldi		rRowBits, 0b00000000
-	st		Y+, rRowBits
-	ldi		rRowBits, 0b11011111
-	st		Y+, rRowBits
-
-		.UNDEF	rRowBits
-
-	ret
-/* drawTemplarMatrix end */	
-
-
-
-/**
- * Set the bits in the matrix with a skull
- */
-drawSkullMatrix:
-		/* Register used for the pixels in a row */
-		.DEF	rRowBits	= r18
-
-	// Initialize the matrix with a skull
-	ldi		YH, HIGH(matrix)	// Set Y to matrix address
-	ldi		YL, LOW(matrix)
-	ldi		rRowBits, 0b01111110 
-	st		Y+, rRowBits
-	ldi		rRowBits, 0b11111111
-	st		Y+, rRowBits
-	ldi		rRowBits, 0b10011001
-	st		Y+, rRowBits
-	ldi		rRowBits, 0b11111111
-	st		Y+, rRowBits
-	ldi		rRowBits, 0b11111111
-	st		Y+, rRowBits
-	ldi		rRowBits, 0b01111110 
-	st		Y+, rRowBits
-	ldi		rRowBits, 0b01011010
-	st		Y+, rRowBits
-	ldi		rRowBits, 0b00000000
-	st		Y+, rRowBits
-
-		.UNDEF	rRowBits
-
-	ret
-/* drawSkullMatrix end */	
-	
-
-
-/**
- * Inverts all the bits in the matrix
- */
-invertMatrix:
-		/* Register used for the pixels in a row */
-		.DEF	rRowBits	= r18
-		.DEF	rIterator	= r19
-
-	// Load a pointer to the matrix
-	ldi		YH, HIGH(matrix)
-	ldi		YL, LOW(matrix)
-
-	// Loop through all the 8 rows
-	ldi		rIterator, 8
-invertRowBits:
-	// Invert one row byte
-	ld		rRowBits, Y			// Load bits
-	com		rRowBits			// Invert bits
-	st		Y+, rRowBits		// Store bits and increment the pointer
-
-	// Repeat for all the rows
-	dec		rIterator			
-	cpi		rIterator, 0
-	brne	invertRowBits
-
-		.UNDEF	rRowBits
-		.UNDEF	rIterator
-
-	ret
-/* invertMatrix end */
-
-
-
-/**
  * Add programs to the main menu
  * @param rArgument0L - the X position of the program pixel
  * @param rArgument0H - the Y position of the program pixel
@@ -3464,78 +3866,39 @@ initializeProgram:
 
 
 /**
- * Initialize the hardware
+ * Display a graphical menu that can be used to select program. Programs are represented by icons
+ * that flicker between two different frames and by moving the joystick left or right, the programs
+ * can be cycled. Moving the joystick up or down selects the program.
  */
-init:
-		/* rAddressH/L */
-		.DEF	rAddressL	= r18
-		.DEF	rAddressH	= r19
-
-	// Initialize stack pointer
-	ldi		rAddressH, HIGH(RAMEND)
-	out		SPH, rAddressH
-	ldi		rAddressL, LOW(RAMEND)
-	out		SPL, rAddressL
-		
-		.UNDEF	rAddressL
-		.UNDEF	rAddressH
-
-	// Set row bits as output bits
-	sbi		DDRC, 0	
-	sbi		DDRC, 1	
-	sbi		DDRC, 2	
-	sbi		DDRC, 3	
-	sbi		DDRD, 2	
-	sbi		DDRD, 3	
-	sbi		DDRD, 4	
-	sbi		DDRD, 5	
-
-	// Set column bits as output bits
-	sbi		DDRD, 6	
-	sbi		DDRD, 7	
-	sbi		DDRB, 0	
-	sbi		DDRB, 1	
-	sbi		DDRB, 2	
-	sbi		DDRB, 3	
-	sbi		DDRB, 4	
-	sbi		DDRB, 5
+programSelectMenu:
+		.DEF	rProgramCount = r2
+		.DEF	rProgramIndex = r3
 	
-	// Set X/Y joystick as input bit
-	cbi		DDRC, 4				// PORTC4 aka Y axis
-	cbi		DDRC, 5				// PORTC5 aka X axis
+	//initializeTimeri						// GIVES ERRORS: FIX
 
-		/* Temporary value for modifying the ADMUX state */
-		.DEF	rTempValue	= r18
+	// Load the program count
+	ldi		YL, LOW(programCount)
+	ldi		YH, HIGH(programCount)
+	ld		rProgramCount, Y
 
-	// Initialize analog / digital converter
-	lds		rTempValue, ADMUX
-	sbr		rTempValue, 0b01000000
-	cbr		rTempValue, 0b10000000
-	sts		ADMUX, rTempValue
+	// Set the index to 0
+	//ldi		rProgramIndex, 0			// GIVES ERRORS: FIX
 
-	lds		rTempValue, ADCSRA
-	sbr		rTempValue, 0b10000111
-	sts		ADCSRA, rTempValue
 
-		.UNDEF	rTempValue
 
-	call	main				// call main (entry point)
-	call	terminate			// if returned from main, terminate
+		.UNDEF	rProgramIndex
+		.UNDEF	rProgramCount
+ret
+/* programSelectMenu end */
 
-	ret							// WARNING! IT SHOULD NEVER REACH THIS
-/* init end */
 
 
 
 /**
  * Entry point after the hardware has been initialized. Runs the code for a menu
- * where you cal select between different programs.
+ * where you can select between different programs.
  */
 main:
-
-		/* rColumn, rRow */
-		.DEF	rColumn			= r8
-		.DEF	rRow			= r9
 		.DEF	rProgramCount	= r18
 
 	// Initialize the program count 
@@ -3546,6 +3909,7 @@ main:
 
 		.UNDEF	rProgramCount
 
+	// Add programs
 	addProgrami 0, 0, snakeGame
 	addProgrami 5, 0, mazeGame
 	addProgrami 7, 0, asteroids
@@ -3555,8 +3919,15 @@ main:
 	addProgrami 5, 7, fillBoard
 	addProgrami 7, 7, randomPixelDraw
 
+	// Set the timer going
+	// call initializeHardwareTimer2		// TODO enable hardware timer in main subroutine
+
 mainLoop:
 	call	clearMatrix
+		
+		/* Column and row registers */
+		.DEF	rColumn			= r8
+		.DEF	rRow			= r9
 
 		/* Temp registers */
 		.DEF	rTemp = r2
@@ -3571,7 +3942,7 @@ mainLoop:
 	call	readJoystick		
 
 	// Convert 10 bit value to 8 bit, discarding lowest 2 bits
-	call	joystickValueTo8Bit				// Return values from the previous call correspond to the correct argument registers
+	call	joystickValueTo8Bit				// Skip loading arguments, since the previous call assigned them to the correct registers already
 	mov		rColumn, rReturnL
 
 	// right shift some more to make the value 3 bits (row 0-7)
@@ -3585,13 +3956,9 @@ mainLoop:
 	// Read Y axis
 	ldi		rArgument0L, JOYSTICK_Y_AXIS
 	call	readJoystick
-	mov		rJoystickL, rReturnL	// Store joystick input value
-	mov		rJoystickH, rReturnH
 
 	// Convert 10 bit value to 8 bit, discarding lowest 2 bits
-	mov		rArgument0L, rJoystickL
-	mov		rArgument0H, rJoystickH
-	call	joystickValueTo8Bit
+	call	joystickValueTo8Bit				// Skip loading arguments, since the previous call assigned them to the correct registers already
 	mov		rRow, rReturnL
 
 		.UNDEF	rJoystickL
@@ -3605,6 +3972,7 @@ mainLoop:
 	sub		rTempI, rRow
 	mov		rRow, rTempI
 
+	// Draw the "cursor"
 	setPixelr	rColumn, rRow
 
 		.UNDEF	rTemp
@@ -3656,6 +4024,70 @@ mainLoopEnd:
 
 	ret							// if program returned, exit main
 /* main end */
+
+
+
+/**
+ * Initialize the hardware
+ */
+init:
+		/* rAddressH/L */
+		.DEF	rAddressL	= r18
+		.DEF	rAddressH	= r19
+
+	// Initialize stack pointer
+	ldi		rAddressH, HIGH(RAMEND)
+	out		SPH, rAddressH
+	ldi		rAddressL, LOW(RAMEND)
+	out		SPL, rAddressL
+		
+		.UNDEF	rAddressL
+		.UNDEF	rAddressH
+
+	// Set row bits as output bits
+	sbi		DDRC, 0	
+	sbi		DDRC, 1	
+	sbi		DDRC, 2	
+	sbi		DDRC, 3	
+	sbi		DDRD, 2	
+	sbi		DDRD, 3	
+	sbi		DDRD, 4	
+	sbi		DDRD, 5	
+
+	// Set column bits as output bits
+	sbi		DDRD, 6	
+	sbi		DDRD, 7	
+	sbi		DDRB, 0	
+	sbi		DDRB, 1	
+	sbi		DDRB, 2	
+	sbi		DDRB, 3	
+	sbi		DDRB, 4	
+	sbi		DDRB, 5
+	
+	// Set X / Y joystick as input bit
+	cbi		DDRC, 4				// PORTC4 aka Y axis
+	cbi		DDRC, 5				// PORTC5 aka X axis
+
+		/* Temporary value for modifying the ADMUX and ADCSRA state */
+		.DEF	rTempValue	= r18
+
+	// Initialize analog / digital converter
+	lds		rTempValue, ADMUX
+	sbr		rTempValue, 0b01000000
+	cbr		rTempValue, 0b10000000
+	sts		ADMUX, rTempValue
+
+	lds		rTempValue, ADCSRA
+	sbr		rTempValue, 0b10000111
+	sts		ADCSRA, rTempValue
+
+		.UNDEF	rTempValue
+
+	call	main				// call main (entry point)
+	call	terminate			// if returned from main, terminate
+
+	ret							// WARNING! IT SHOULD NEVER REACH THIS
+/* init end */
 
 
 
