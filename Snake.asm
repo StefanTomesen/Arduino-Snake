@@ -1533,6 +1533,37 @@ generateRandom4BitValue:
 
 
 /**
+ * Determines whether two positions intersect
+ * @param rArgument0L - The X coordinate of the first position
+ * @param rArgument0H - The Y coordinate of the first position
+ * @param rArgument1L - The X coordinate of the second position
+ * @param rArgument1H - The Y coordinate of the second position
+ * @return rReturnL - Whether or not the points intersect (boolean)
+ */
+checkCollision:
+		.DEF	rHasCollided = r18
+
+ 	// Set collision to false by default
+	ldi		rHasCollided, 0
+
+	// Check whether a collision has occured
+	cp		rArgument0L, rArgument1L				// If the x values are different, we haven't collided
+	brne	skipCollidedWithFood
+	cp		rArgument0H, rArgument1H				// If the y values are different, we haven't collided
+	brne	skipCollidedWithFood
+	ldi		rHasCollided, 1							// If we have collided, return true
+skipCollidedWithFood:
+
+	// Return whether we have collided or not
+	mov		rReturnL, rHasCollided					
+		
+		.UNDEF	rHasCollided
+	ret
+/* checkCollision end */
+
+
+
+/**
  * Draws the logo for the program 'Snake Game', alternating between two different frames.
  * @param rArgument0L - Which of the two frames that is draw
  */
@@ -2042,36 +2073,6 @@ drawSkullMatrix:
 	ret
 /* drawSkullMatrix end */	
 
-
-
-/**
- * Determines whether two positions intersect
- * @param rArgument0L - The X coordinate of the first position
- * @param rArgument0H - The Y coordinate of the first position
- * @param rArgument1L - The X coordinate of the second position
- * @param rArgument1H - The Y coordinate of the second position
- * @return rReturnL - Whether or not the points intersect (boolean)
- */
-checkCollision:
-		.DEF	rHasCollided = r18
-
- 	// Set collision to false by default
-	ldi		rHasCollided, 0
-
-	// Check whether a collision has occured
-	cp		rArgument0L, rArgument1L				// If the x values are different, we haven't collided
-	brne	skipCollidedWithFood
-	cp		rArgument0H, rArgument1H				// If the y values are different, we haven't collided
-	brne	skipCollidedWithFood
-	ldi		rHasCollided, 1							// If we have collided, return true
-skipCollidedWithFood:
-
-	// Return whether we have collided or not
-	mov		rReturnL, rHasCollided					
-		
-		.UNDEF	rHasCollided
-	ret
-/* checkCollision end */
 
 
 
