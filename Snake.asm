@@ -7,6 +7,10 @@
  *	Thism2 assemble setting
  *	avrdude -C "E:\Other\WinAVR-20100110\bin\avrdude.conf" -p atmega328p -P com3 -c arduino -b 115200 -U flash:w:Snake.hex 
  *
+ * "TO FIX" NOTES:
+ *  - New Menu system
+ *  - Better error exits (i.e. more than one terminate image) 
+ *		- ex.	callError codeOutOfBonds			// OUT OF BOUNDS CHECK
  */ 
 
 
@@ -94,36 +98,59 @@
 	/* Program */
 	// Constants
 	.EQU	MAX_PROGRAMS			= 8
-	.EQU	PROGRAM_DATA_SIZE		= 4
+	.EQU	PROGRAM_DATA_SIZE		= 6
 	// Data structure
-	.EQU	oProgramX				= 0x00
-	.EQU	oProgramY				= 0x01
+	.EQU	oProgramX				= 0x00		// TODO: REMOVE WHEN OBSELETE
+	.EQU	oProgramY				= 0x01		// TODO: REMOVE WHEN OBSELETE
 	.EQU	oProgramAdressL			= 0x02
 	.EQU	oProgramAdressH			= 0x03
+	.EQU	oProgramPreviewAdressL	= 0x04
+	.EQU	oProgramPreviewAdressH	= 0x05
 
-
+	/* Tetris */
+	// Constants
+	.EQU	TETRIS_NONE_BLOCK			= 0
+	.EQU	TETRIS_I_BLOCK				= 1
+	.EQU	TETRIS_O_BLOCK				= 2
+	.EQU	TETRIS_T_BLOCK				= 3		
+	.EQU	TETRIS_L_BLOCK				= 4	
+	.EQU	TETRIS_REVERSE_L_BLOCK		= 5			
+	.EQU	TETRIS_S_BLOCK				= 6		
+	.EQU	TETRIS_REVERSE_S_BLOCK		= 7
+	.EQU	TETRIS_BLOCKS				= 8
+	.EQU	TETRIS_DATA_SIZE			= 4
+	// Data structure
+	.EQU	oTetrisBlockType			= 0x00
+	.EQU	oTetrisBlockRotation		= 0x01
+	.EQU	oTetrisBlockX				= 0x02
+	.EQU	oTetrisBlockY				= 0x03
+	.EQU	oTetrisSpeedEnabled			= 0x04
 
 	/**
 	 * Program constant definitions
 	 */
 
 	/* Snake Game */
-	.EQU	SNAKE_UPDATE_TIME		= 16
-	.EQU	SNAKE_FOOD_UPDATE_TIME	= 13
-	.EQU	SNAKE_DIE_UPDATE_TIME	= SNAKE_UPDATE_TIME / 2
-	.EQU	SNAKE_BOARD_FLASH_TIME	= 32
-	.EQU	SNAKE_BOARD_BLINKS		= 5
+	.EQU	SNAKE_UPDATE_TIME			= 16
+	.EQU	SNAKE_FOOD_UPDATE_TIME		= 13
+	.EQU	SNAKE_DIE_UPDATE_TIME		= SNAKE_UPDATE_TIME / 2
+	.EQU	SNAKE_BOARD_FLASH_TIME		= 32
+	.EQU	SNAKE_BOARD_BLINKS			= 5
 
 	/* Timer test */
-	.EQU	TIMER_TEST_TIMER0_TIME	= 32 + 127
-	.EQU	TIMER_TEST_TIMER1_TIME	= 128 + 84
-	.EQU	TIMER_TEST_TIMER2_TIME	= 512 + 02
-	.EQU	TIMER_TEST_TIMER3_TIME	= 2048 + 295
+	.EQU	TIMER_TEST_TIMER0_TIME		= 32 + 127
+	.EQU	TIMER_TEST_TIMER1_TIME		= 128 + 84
+	.EQU	TIMER_TEST_TIMER2_TIME		= 512 + 02
+	.EQU	TIMER_TEST_TIMER3_TIME		= 2048 + 295
 
 	/* Random test */
-	.EQU	RANDOM_NUMBER_COUNT		= 16
-	.EQU	RANDOM_DISPLAY_TIME		= 128
+	.EQU	RANDOM_NUMBER_COUNT			= 16
+	.EQU	RANDOM_DISPLAY_TIME			= 128
 
+	/* Tetris Game */
+	.EQU	TETRIS_UPDATE_TIME			= 32
+	.EQU	TETRIS_SPEED_UPDATE_TIME	= TETRIS_UPDATE_TIME / 4
+	.EQU	TETRIS_JOYSTICK_UPDATE_TIME	= 12
 
 
 	/** 
@@ -341,8 +368,15 @@ snakeArrayX:		.BYTE	SNAKE_MAX_LENGTH
 snakeArrayY:		.BYTE	SNAKE_MAX_LENGTH
 flashFood:			.BYTE	FLASH_FOOD_DATA_SIZE
 
+// Tetris data			
+tetris:				.BYTE	TETRIS_DATA_SIZE	
+// Tetris block data
+tetrisBlockArrayX:	.BYTE	4 * 4 * TETRIS_BLOCKS
+tetrisBlockArrayY:	.BYTE	4 * 4 * TETRIS_BLOCKS
+tetrisBlockBitMap:	.BYTE	4 * 4 * TETRIS_BLOCKS
 
-	
+
+
 	/**							
 	 * Code segment
 	 */
@@ -431,10 +465,10 @@ timer2OverflowInterupt:
 
 
 
-/**
+ /******************************************************************************************
  * Program: TimerTest
  * Start runing the timer test
- */
+ *****************************************************************************************/
 timerTest:
 
 	// Hardware timer initializiton
@@ -513,12 +547,16 @@ timerTestLoop:
 	ret
 /* timerTest end */
 
+/******************************************************************************************
+ * End Timer Test
+ *****************************************************************************************/
 
 
-/**
+
+ /******************************************************************************************
  * Program: randomPixelDraw
  * Draws a number of random pixelels
- */
+ *****************************************************************************************/
 randomPixelDraw:	
 
 	// Timer initializiton
@@ -570,6 +608,10 @@ randomRender:
 
 	ret
 /* randomPixelDraw end */
+
+/******************************************************************************************
+ * End Random Pixel Draw
+ *****************************************************************************************/
 
 
 
@@ -1330,16 +1372,1018 @@ initializeFlashFood:
 
 
 /******************************************************************************************
- * Program: Maze Game																	  *
- * A maze game something something dark side											  *
+ * Program: Tetris Game
+ * The classic game tetris
  *****************************************************************************************/
- mazeGame:
+mazeGame:
+tetrisGame:
+	call	clearMatrix
+
+	// Hardware timer initializiton
+	ldi		rArgument0L, TIMER2_PRE_1024
+	call	initializeHardwareTimer2
+
+	initializeTimeri updateTimer, TETRIS_UPDATE_TIME
+	initializeTimeri renderTimer, TETRIS_JOYSTICK_UPDATE_TIME
+
+	call	tetrisStartAnimation
+
+	call	initializeTetris
+
+	call	tetrisNextBlock
+
+	// Draw the next block
+	call	drawTetrisBlock
+
+tetrisLoop:
+	checkTimeri		renderTimer
+	cpi		rReturnL, 1
+	brne	tetrisSkipJoyStickUpdate
+	
+	call	tetrisJoyStickUpdate
+tetrisSkipJoyStickUpdate:
+
+	checkTimeri		updateTimer
+	cpi		rReturnL, 1
+	brne	tetrisSkipUpdate
+
+	call	tetrisUpdate
+	call	tetrisClearFullRows
+tetrisSkipUpdate:
+	
+	call	render
+	jmp		tetrisLoop
 
 	ret
-/* mazeGame end */
+/* tetrisGame end */
+
+
+
+/**
+ * initializeTetris
+ */
+initializeTetris:
+		.DEF	rZero			= r18
+		.DEF	rBlockX			= r19
+		.DEF	rBlockY			= r20
+		
+	ldi		YL, LOW(tetris)
+	ldi		YH, HIGH(tetris)
+	ldi		rZero, 0
+	std		Y + oTetrisBlockType, rZero
+	std		Y + oTetrisBlockRotation, rZero
+	std		Y + oTetrisBlockX, rZero
+	std		Y + oTetrisBlockY, rZero
+
+	.MACRO store 
+	ldi		rBlockX, @0
+	ldi		rBlockY, @1
+	st		X+, rBlockX
+	st		Y+, rBlockY	
+	.ENDMACRO
+
+	// Load block x/y array
+	ldi		XL, LOW(tetrisBlockArrayX)
+	ldi		XH, HIGH(tetrisBlockArrayX)
+	ldi		YL, LOW(tetrisBlockArrayY)
+	ldi		YH, HIGH(tetrisBlockArrayY)
+
+	adiw	X, 4 * 4
+	adiw	Y, 4 * 4
+
+	// I Block
+	// Rotation 0
+	store	0, 1
+	store	1, 1
+	store	2, 1
+	store	3, 1
+	// Rotation 1
+	store	1, 0
+	store	1, 1
+	store	1, 2
+	store	1, 3
+	// Rotation 2
+	store	0, 1
+	store	1, 1
+	store	2, 1
+	store	3, 1
+	// Rotation 3
+	store	1, 0
+	store	1, 1
+	store	1, 2
+	store	1, 3
+
+	// O Block
+	// Rotation 0
+	store	1, 1
+	store	1, 2
+	store	2, 1
+	store	2, 2
+	// Rotation 1
+	store	1, 1
+	store	1, 2
+	store	2, 1
+	store	2, 2
+	// Rotation 2
+	store	1, 1
+	store	1, 2
+	store	2, 1
+	store	2, 2
+	// Rotation 3
+	store	1, 1
+	store	1, 2
+	store	2, 1
+	store	2, 2
+
+	// T Block
+	// Rotation 0
+	store	0, 1
+	store	1, 0
+	store	1, 1
+	store	2, 1
+	// Rotation 1
+	store	1, 0
+	store	1, 1
+	store	1, 2
+	store	2, 1
+	// Rotation 2
+	store	0, 0
+	store	1, 1
+	store	1, 0
+	store	2, 0
+	// Rotation 3
+	store	1, 0
+	store	1, 1
+	store	1, 2
+	store	0, 1
+
+	// L Block
+	// Rotation 0
+	store	1, 0
+	store	1, 1
+	store	2, 1
+	store	3, 1
+	// Rotation 1
+	store	1, 1
+	store	1, 2
+	store	1, 3
+	store	2, 1
+	// Rotation 2
+	store	0, 0
+	store	1, 0
+	store	2, 0
+	store	2, 1
+	// Rotation 3
+	store	1, 2
+	store	2, 1
+	store	2, 2
+	store	2, 3
+
+	// Reverse L Block
+	// Rotation 0
+	store	0, 1
+	store	1, 1
+	store	2, 1
+	store	2, 0
+	// Rotation 1
+	store	1, 0
+	store	1, 1
+	store	1, 2
+	store	2, 2
+	// Rotation 2
+	store	1, 2
+	store	1, 1
+	store	2, 1
+	store	3, 1
+	// Rotation 3
+	store	1, 0
+	store	2, 0
+	store	2, 1
+	store	2, 2
+
+	// S Block
+	// Rotation 0
+	store	2, 1
+	store	1, 1
+	store	1, 0
+	store	0, 0
+	// Rotation 1
+	store	1, 2
+	store	1, 1
+	store	2, 1
+	store	2, 0
+	// Rotation 2
+	store	2, 1
+	store	1, 1
+	store	1, 0
+	store	0, 0
+	// Rotation 3
+	store	1, 2
+	store	1, 1
+	store	2, 1
+	store	2, 0
+
+	// Reverse S Block
+	// Rotation 0
+	store	0, 1
+	store	1, 1
+	store	1, 0
+	store	2, 0
+	// Rotation 1
+	store	1, 0
+	store	1, 1
+	store	2, 1
+	store	2, 2
+	// Rotation 2
+	store	0, 1
+	store	1, 1
+	store	1, 0
+	store	2, 0
+	// Rotation 3
+	store	1, 0
+	store	1, 1
+	store	2, 1
+	store	2, 2
+
+		.UNDEF	rZero
+		.UNDEF	rBlockX
+		.UNDEF	rBlockY
+
+	ret
+/* initializeTetris end */
+
+
+
+/**
+ * tetrisStartAnimation
+ */
+tetrisStartAnimation:
+
+	ret
+/* tetrisStartAnimation end */
+
+
+
+/**
+ * tetrisEndAnimation
+ */
+tetrisEndAnimation:
+
+	ret
+/* tetrisEndAnimation end */
+
+
+
+/**
+ * clearFullRows
+ */
+tetrisClearFullRows:
+
+	call	clearTetrisBlock
+
+		.DEF	rRow			= r18
+		.DEF	rRowCounter		= r19
+		.DEF	rRowCopyCounter	= r20
+
+	ldi		YL, LOW(matrix)
+	ldi		YH, HIGH(matrix)
+	adiw	Y, 7
+
+	ldi		rRowCounter, 8
+
+tetrisClearRowsLoop:
+	ld		rRow, Y
+	// Skip clear if not full
+	cpi		rRow, 0xFF
+	brne	tetrisSkipClear
+	clr		rRow
+	st		Y, rRow
+
+	mov		ZL, YL
+	mov		ZH, YH
+	sbiw	Z, 1
+	mov		rRowCopyCounter, rRowCounter
+	subi	rRowCopyCounter, 1
+
+tetrisClearRowsCopyLoop:
+	ld		rRow, Z
+	adiw	Z, 1
+	st		Z, rRow
+	sbiw	Z, 2
+
+	dec		rRowCopyCounter
+	cpi		rRowCopyCounter, 0
+	brne	tetrisClearRowsCopyLoop
+	// Clear top row
+	clr		rRow
+	st		Z, rRow
+	
+	adiw	Y, 1
+tetrisSkipClear:
+	
+	sbiw	Y, 1
+
+	dec		rRowCounter
+	cpi		rRowCounter, 0
+	brne	tetrisClearRowsLoop
+
+		.UNDEF	rRow
+		.UNDEF	rRowCounter
+		.UNDEF	rRowCopyCounter
+
+	call	drawTetrisBlock
+
+	ret
+/* clearFullRows end */
+
+
+
+/**
+ * tetrisUpdate
+ */
+tetrisUpdate:
+		.DEF	rBlockX			= r18
+		.DEF	rBlockY			= r19
+		.DEF	rBlockRotation	= r20
+
+	// Clear old position
+	call	clearTetrisBlock
+
+	// Move down
+	ldi		YL, LOW(tetris)
+	ldi		YH, HIGH(tetris)
+	ldd		rBlockY, Y + oTetrisBlockY
+	inc		rBlockY
+	std		Y + oTetrisBlockY, rBlockY
+
+	call	tetrisCheckCollision
+	cpi		rReturnL, 0
+	breq	tetrisNewBlock
+
+	jmp		tetrisCanMoveEnd
+
+tetrisNewBlock:
+	// Move back up (can't move down)
+	ldi		YL, LOW(tetris)
+	ldi		YH, HIGH(tetris)
+	ldd		rBlockY, Y + oTetrisBlockY
+	dec		rBlockY
+	std		Y + oTetrisBlockY, rBlockY
+
+	// Draw the old block back
+	call	drawTetrisBlock
+
+	// Generate the next block
+	call	tetrisNextBlock
+
+	// If new block collides on entry, Game Over and reset
+	call	tetrisCheckCollision
+	cpi		rReturnL, 1
+	breq	tetrisCanMoveEnd
+	call	tetrisEndAnimation
+	jmp		tetrisGame
+
+tetrisCanMoveEnd:
+	call	drawTetrisBlock
+
+		.UNDEF	rBlockX
+		.UNDEF	rBlockY
+		.UNDEF	rBlockRotation
+
+	ret
+/* tetrisUpdate end */
+
+
+
+/**
+ * tetrisJoyStickUpdate
+ */
+tetrisJoyStickUpdate:
+		.DEF	rDirectionX		= r18
+		.DEF	rDirectionY		= r19
+		.DEF	rSpeedEnabled	= r20
+
+	call	clearTetrisBlock
+
+	// choose action from joystick
+	call	readJoystickDirection
+	mov		rDirectionX, rReturnL
+	mov		rDirectionY, rReturnH
+
+	cpi		rDirectionY, 1			// joystick down - speeds up block decent
+	breq	tetrisSpeed
+
+	// Load speed is enabled
+	ldi		YL, LOW(tetris)
+	ldi		YH, HIGH(tetris)
+	ldd		rSpeedEnabled, Y + oTetrisSpeedEnabled
+	
+	// If speed was enabled
+	cpi		rSpeedEnabled, 1
+	brne	tetrisSkipResetSpeed
+
+	// Disable speed and store it
+	ldi		rSpeedEnabled, 0
+	std		Y + oTetrisSpeedEnabled, rSpeedEnabled
+
+		.UNDEF	rSpeedEnabled	
+		.DEF	tempL = r20
+		.DEF	tempH = r21
+
+	// Update timer
+	ldi		YL, LOW(updateTimer)
+	ldi		YH, HIGH(updateTimer)
+	ldi		tempL, LOW(TETRIS_UPDATE_TIME)
+	ldi		tempH, HIGH(TETRIS_UPDATE_TIME)
+	std		Y + oTimerTargetTimeL, tempL
+	std		Y + oTimerTargetTimeH, tempH
+
+		.UNDEF	tempL
+		.UNDEF	tempH
+
+tetrisSkipResetSpeed:
+
+	cpi		rDirectionY, -1			// joystick up - rotates block
+	breq	tetrisRotate
+	cpi		rDirectionX, 0			// joystick right or left
+	brne	tetrisMoveSideways
+
+	// if nothing, skip action
+	jmp		tetrisJoystickEnd
+
+tetrisSpeed:
+		.DEF	rSpeedEnabled	= r20
+
+	// Load speed is enabled
+	ldi		YL, LOW(tetris)
+	ldi		YH, HIGH(tetris)
+	ldd		rSpeedEnabled, Y + oTetrisSpeedEnabled
+
+	// If speed was not enabled
+	cpi		rSpeedEnabled, 0
+	brne	tetrisSkipEnableSpeed
+
+	// Enable speed and store it
+	ldi		rSpeedEnabled, 1
+	std		Y + oTetrisSpeedEnabled, rSpeedEnabled
+
+		.UNDEF	rSpeedEnabled	
+		.DEF	tempL = r20
+		.DEF	tempH = r21
+
+	// Update timer
+	ldi		YL, LOW(updateTimer)
+	ldi		YH, HIGH(updateTimer)
+	ldi		tempL, LOW(TETRIS_SPEED_UPDATE_TIME)
+	ldi		tempH, HIGH(TETRIS_SPEED_UPDATE_TIME)
+	std		Y + oTimerTargetTimeL, tempL
+	std		Y + oTimerTargetTimeH, tempH
+
+		.UNDEF	tempL
+		.UNDEF	tempH
+
+tetrisSkipEnableSpeed:
+
+	jmp		tetrisJoystickEnd
+
+tetrisRotate:
+
+		.DEF	rBlockRotation	= r20
+
+	ldi		YL, LOW(tetris)
+	ldi		YH, HIGH(tetris)
+	ldd		rBlockRotation, Y + oTetrisBlockRotation
+	inc		rBlockRotation
+	andi	rBlockRotation, 0b00000011					// rBlockRotation % 4
+	std		Y + oTetrisBlockRotation, rBlockRotation
+
+	push	rDirectionX
+	push	rDirectionY
+	call	tetrisCheckCollision
+	pop		rDirectionY
+	pop		rDirectionX
+
+	cpi		rReturnL, 1
+	breq	tetrisCanRotate
+
+	// If Can not rotate, rotate back
+	ldi		YL, LOW(tetris)
+	ldi		YH, HIGH(tetris)
+	ldd		rBlockRotation, Y + oTetrisBlockRotation
+	dec		rBlockRotation
+	andi	rBlockRotation, 0b00000011					// rBlockRotation % 4
+	std		Y + oTetrisBlockRotation, rBlockRotation
+tetrisCanRotate:
+
+	jmp		tetrisJoystickEnd
+
+		.UNDEF	rBlockRotation
+		.DEF	rBlockX			= r20
+		.DEF	rBlockY			= r21
+
+tetrisMoveSideways:
+	// Move block sidways
+	ldi		YL, LOW(tetris)
+	ldi		YH, HIGH(tetris)
+	ldd		rBlockX, Y + oTetrisBlockX
+	add		rBlockX, rDirectionX
+	std		Y + oTetrisBlockX, rBlockX
+
+	push	rDirectionX
+	call	tetrisCheckCollision
+	pop		rDirectionX
+
+	cpi		rReturnL, 1
+	breq	tetrisJoystickEnd
+
+	// If Can not move sideways, move back
+	ldi		YL, LOW(tetris)
+	ldi		YH, HIGH(tetris)
+	ldd		rBlockX, Y + oTetrisBlockX
+	sub		rBlockX, rDirectionX
+	std		Y + oTetrisBlockX, rBlockX
+
+		.UNDEF	rBlockX
+		.UNDEF	rBlockY
+
+tetrisJoystickEnd:
+
+		.UNDEF	rDirectionX
+		.UNDEF	rDirectionY
+
+	call	drawTetrisBlock
+
+	ret
+/* tetrisJoyStickUpdate end */
+
+
+
+/**
+ * tetrisNextBlock
+ */
+tetrisNextBlock:	
+		.DEF	rBlockX			= r18
+		.DEF	rBlockY			= r19
+		.DEF	rBlockRotation	= r20
+
+	// Generate the next block
+tetrisGenerateNextBlock:
+	call	generateRandom3BitValue
+	cpi		rReturnL, TETRIS_NONE_BLOCK
+	breq	tetrisGenerateNextBlock			// while type is NONE_BLOCK, generate new
+
+	// Load pointer
+	ldi		YL, LOW(tetris)
+	ldi		YH, HIGH(tetris)
+
+	// Store type
+	ldi		rReturnL, TETRIS_T_BLOCK		// TEMP
+	std		Y + oTetrisBlockType, rReturnL
+
+	// Reset position and rotation
+	ldi		rBlockX, 3
+	ldi		rBlockY, 0
+	ldi		rBlockRotation, 0
+	std		Y + oTetrisBlockX, rBlockX
+	std		Y + oTetrisBlockY, rBlockY	
+	std		Y + oTetrisBlockRotation, rBlockRotation	
+
+		.UNDEF	rBlockX
+		.UNDEF	rBlockY
+		.UNDEF	rBlockRotation
+
+	ret
+/* tetrisNextBlock end */
+
+
+
+/**
+ * checkCanMove
+ * @return rReturnL - true/false
+ */
+tetrisCheckCollision:
+		.DEF	rZero			= r18
+		.DEF	rBlockType		= r19
+		.DEF	rBlockX			= r3
+		.DEF	rBlockY			= r4
+		.DEF	rBlockRotation	= r5
+	push	rBlockX
+	push	rBlockY
+	push	rBlockRotation
+
+	ldi		YH, HIGH(tetris)
+	ldi		YL, LOW(tetris)
+	ldd		rBlockType, Y + oTetrisBlockType
+	ldd		rBlockRotation, Y + oTetrisBlockRotation
+	ldd		rBlockX, Y + oTetrisBlockX
+	ldd		rBlockY, Y + oTetrisBlockY	
+
+	// none is error
+	cpi		rBlockType, TETRIS_NONE_BLOCK	
+	brne	tetrisCheckValidBlock
+	call	terminate
+
+tetrisCheckValidBlock:
+	// Load block x/y array
+	ldi		XL, LOW(tetrisBlockArrayX)
+	ldi		XH, HIGH(tetrisBlockArrayX)
+	ldi		YL, LOW(tetrisBlockArrayY)
+	ldi		YH, HIGH(tetrisBlockArrayY)
+
+	// offset to right block type
+	lsl4	rBlockType				// times 16
+
+	ldi		rZero, 0
+	cp		rBlockRotation, rZero
+	breq	tetrisCheckRotateOffsetLoopEnd
+tetrisCheckRotateOffsetLoop:
+
+	subi	rBlockType, -4
+	dec		rBlockRotation
+
+	ldi		rZero, 0
+	cp		rBlockRotation, rZero
+	brne	tetrisCheckRotateOffsetLoop
+tetrisCheckRotateOffsetLoopEnd:
+
+	ldi		rZero, 0
+	add		XL, rBlockType
+	adc		XH, rZero
+	add		YL, rBlockType
+	adc		YH, rZero
+
+		.UNDEF	rBlockType
+		.UNDEF	rZero
+		.DEF	rCounter	= r19
+		.DEF	rBlockXSum	= r20
+		.DEF	rBlockYSum	= r21
+
+	ldi		rCounter, 4
+
+tetrisCheckLoop:
+	ld		rBlockXSum, X+
+	ld		rBlockYSum, Y+
+	add		rBlockXSum, rBlockX
+	add		rBlockYSum, rBlockY
+	
+	// if X is outside range (0, 7)
+	ldi		rReturnL, 0
+	cpi		rBlockXSum, 8
+	brge	tetrisCheckReturn
+	cpi		rBlockXSum, 0
+	brlt	tetrisCheckReturn
+
+	// if Y is outside range (0, 7)
+	ldi		rReturnL, 0
+	cpi		rBlockYSum, 8
+	brge	tetrisCheckReturn
+	cpi		rBlockYSum, 0
+	brlt	tetrisCheckReturn
+
+	// Check Pixels
+	push	rCounter
+	push	XL
+	push	XH
+	push	YL
+	push	YH
+
+	mov		rArgument0L, rBlockXSum
+	mov		rArgument0H, rBlockYSum
+	call	isPixelClear
+
+	pop		YH
+	pop		YL
+	pop		XH
+	pop		XL
+	pop		rCounter
+
+	// if Pixel not clear return false
+	cpi		rReturnL, 0
+	breq	tetrisCheckReturn
+
+	dec		rCounter
+	cpi		rCounter, 0
+	brne	tetrisCheckLoop
+
+	ldi		rReturnL, 1
+	
+tetrisCheckReturn:
+
+	pop		rBlockRotation
+	pop		rBlockY
+	pop		rBlockX
+		.UNDEF	rBlockX
+		.UNDEF	rBlockY
+		.UNDEF	rBlockRotation
+		.UNDEF	rCounter
+		.UNDEF	rBlockXSum
+		.UNDEF	rBlockYSum
+
+	ret
+/* checkCanMove end */
+
+
+
+/**
+ * drawTetrisBlock
+ */
+drawTetrisBlock:
+		.DEF	rZero			= r18
+		.DEF	rBlockType		= r19
+		.DEF	rBlockX			= r3
+		.DEF	rBlockY			= r4
+		.DEF	rBlockRotation	= r5
+	push	rBlockX
+	push	rBlockY
+	push	rBlockRotation
+
+	ldi		YH, HIGH(tetris)
+	ldi		YL, LOW(tetris)
+	ldd		rBlockType, Y + oTetrisBlockType
+	ldd		rBlockRotation, Y + oTetrisBlockRotation
+	ldd		rBlockX, Y + oTetrisBlockX
+	ldd		rBlockY, Y + oTetrisBlockY
+
+	// none is error
+	cpi		rBlockType, TETRIS_NONE_BLOCK	
+	brne	tetrisDrawValidBlock
+	call	terminate
+
+tetrisDrawValidBlock:
+	// Load block x/y array
+	ldi		XL, LOW(tetrisBlockArrayX)
+	ldi		XH, HIGH(tetrisBlockArrayX)
+	ldi		YL, LOW(tetrisBlockArrayY)
+	ldi		YH, HIGH(tetrisBlockArrayY)
+
+	// offset to right block type
+	lsl4	rBlockType				// times 16
+
+	ldi		rZero, 0
+	cp		rBlockRotation, rZero
+	breq	tetrisDrawRotateOffsetLoopEnd
+tetrisDrawRotateOffsetLoop:
+
+	subi	rBlockType, -4
+	dec		rBlockRotation
+	ldi		rZero, 0
+	cp		rBlockRotation, rZero
+	brne	tetrisDrawRotateOffsetLoop
+tetrisDrawRotateOffsetLoopEnd:
+
+	ldi		rZero, 0
+	add		XL, rBlockType
+	adc		XH, rZero
+	add		YL, rBlockType
+	adc		YH, rZero
+
+		.UNDEF	rBlockType
+		.UNDEF	rZero
+		.DEF	rCounter	= r19
+		.DEF	rBlockXSum	= r20
+		.DEF	rBlockYSum	= r21
+
+	ldi		rCounter, 4
+
+tetrisDrawLoop:
+	ld		rBlockXSum, X+
+	ld		rBlockYSum, Y+
+	add		rBlockXSum, rBlockX
+	add		rBlockYSum, rBlockY
+
+	// Draw pixels
+	push	rCounter
+	push	XL
+	push	XH
+	push	YL
+	push	YH
+	setPixelr rBlockXSum, rBlockYSum
+	pop		YH
+	pop		YL
+	pop		XH
+	pop		XL
+	pop		rCounter
+
+	dec		rCounter
+	cpi		rCounter, 0
+	brne	tetrisDrawLoop
+
+	pop		rBlockRotation
+	pop		rBlockY
+	pop		rBlockX
+		.UNDEF	rBlockX
+		.UNDEF	rBlockY
+		.UNDEF	rBlockRotation
+		.UNDEF	rCounter
+		.UNDEF	rBlockXSum
+		.UNDEF	rBlockYSum
+
+	ret
+/* drawTetrisBlock end */
+
+
+
+/**
+ * clearTetrisBlock
+ */
+clearTetrisBlock:
+
+		.DEF	rZero			= r18
+		.DEF	rBlockType		= r19
+		.DEF	rBlockX			= r3
+		.DEF	rBlockY			= r4
+		.DEF	rBlockRotation	= r5
+	push	rBlockX
+	push	rBlockY
+	push	rBlockRotation
+
+	ldi		YH, HIGH(tetris)
+	ldi		YL, LOW(tetris)
+	ldd		rBlockType, Y + oTetrisBlockType
+	ldd		rBlockRotation, Y + oTetrisBlockRotation
+	ldd		rBlockX, Y + oTetrisBlockX
+	ldd		rBlockY, Y + oTetrisBlockY
+
+	// none is error
+	cpi		rBlockType, TETRIS_NONE_BLOCK	
+	brne	tetrisClearValidBlock
+	call	terminate
+
+tetrisClearValidBlock:
+	// Load block x/y array
+	ldi		XL, LOW(tetrisBlockArrayX)
+	ldi		XH, HIGH(tetrisBlockArrayX)
+	ldi		YL, LOW(tetrisBlockArrayY)
+	ldi		YH, HIGH(tetrisBlockArrayY)
+
+	// offset to right block type
+	lsl4	rBlockType				// times 16
+
+	ldi		rZero, 0
+	cp		rBlockRotation, rZero
+	breq	tetrisClearRotateOffsetLoopEnd
+tetrisClearRotateOffsetLoop:
+	subi	rBlockType, -4
+	dec		rBlockRotation
+	ldi		rZero, 0
+	cp		rBlockRotation, rZero
+	brne	tetrisClearRotateOffsetLoop
+tetrisClearRotateOffsetLoopEnd:
+
+	ldi		rZero, 0
+	add		XL, rBlockType
+	adc		XH, rZero
+	add		YL, rBlockType
+	adc		YH, rZero
+
+		.UNDEF	rBlockType
+		.UNDEF	rZero
+		.DEF	rCounter	= r19
+		.DEF	rBlockXSum	= r20
+		.DEF	rBlockYSum	= r21
+
+	ldi		rCounter, 4
+
+tetrisClearLoop:
+	ld		rBlockXSum, X+
+	ld		rBlockYSum, Y+
+	add		rBlockXSum, rBlockX
+	add		rBlockYSum, rBlockY
+	// Clear pixel
+	push	rCounter
+	push	XL
+	push	XH
+	push	YL
+	push	YH
+	clearPixelr rBlockXSum, rBlockYSum
+	pop		YH
+	pop		YL
+	pop		XH
+	pop		XL
+	pop		rCounter
+
+	dec		rCounter
+	cpi		rCounter, 0
+	brne	tetrisClearLoop
+
+	pop		rBlockRotation
+	pop		rBlockY
+	pop		rBlockX
+		.UNDEF	rBlockX
+		.UNDEF	rBlockY
+		.UNDEF	rBlockRotation
+		.UNDEF	rCounter
+		.UNDEF	rBlockXSum
+		.UNDEF	rBlockYSum
+
+	ret
+/* clearTetrisBlock end */
+
+
+
+/**
+ * tetrisGamePreview
+ * @param rArgument0L - witches image to show
+ */
+tetrisGamePreview:
+
+	ret
+/* tetrisGamePreview end */
+
+
+
+/**********
+ * OTHER
+ *********/
+
+/**
+ * isPixelSet
+ * @param rArgument0L - X
+ * @param rArgument0H - Y
+ * @return rReturnL - is set
+ */
+isPixelSet:
+		.DEF	rRow		= r18
+		.DEF	rColumn		= r19
+		.DEF	rRowMask	= r20
+		.DEF	rZero		= r21
+
+	// Load the matrix adress into 16 bit register Y (LOW + HIGH)
+	mov		rColumn,	rArgument0L
+	mov		rRow,		rArgument0H
+
+	// Assert coordinates X & Y < 8
+	cpi		rRow, 8
+	brlo	isValidPixelSet
+	cpi		rColumn, 8
+	brlo	isValidPixelSet
+	call	terminate
+isValidPixelSet:
+
+	// convert value to mask
+	ldi		rRowMask, 0b10000000
+isPixelSetColumnShiftLoop:
+	cpi		rColumn, 0
+	breq	isPixelSetColumnShiftEnd
+	subi	rColumn, 1
+	lsr		rRowMask
+	jmp		isPixelSetColumnShiftLoop
+isPixelSetColumnShiftEnd:
+
+	ldi		YH, HIGH(matrix)
+	ldi		YL, LOW(matrix)
+	ldi		rZero, 0
+	add		YL,	rRow
+	adc		YH, rZero
+	ld		rRow, Y
+
+	// sort out specified bit
+	and		rRow, rRowMask
+
+	// Default is pixel not set
+	ldi		rReturnL, 0
+
+	// Check if pixel is set
+	cpi		rRow, 0
+	breq	isPixelNotSet
+	ldi		rReturnL, 1
+
+isPixelNotSet:
+
+		.UNDEF	rRow
+		.UNDEF	rColumn
+		.UNDEF	rRowMask
+		.UNDEF	rZero
+
+	ret
+/* isPixelSet end */
+
+
+
+/**
+ * isPixelClear
+ * @param rArgument0L - X
+ * @param rArgument0H - Y
+ * @return rReturnL - is clear
+ */
+isPixelClear:
+	call	isPixelSet			// return !isPixelSet
+	cpi		rReturnL, 1
+	breq	isPixelNotClear
+
+	ldi		rReturnL, 1
+	jmp		isPixelNotClearReturn
+
+isPixelNotClear:
+	ldi		rReturnL, 0
+
+isPixelNotClearReturn:
+
+	ret
+/* isPixelClear end */
 
 /******************************************************************************************
- * End Maze Game																	  
+ * End Tetris Game																	  
  *****************************************************************************************/
 
 
@@ -1348,7 +2392,7 @@ initializeFlashFood:
  * Program: Asteroids																	  *
  * ASTEROIDS!																			  *
  *****************************************************************************************/
- asteroids:
+asteroids:
 
 	ret
 /* asteroids end */
