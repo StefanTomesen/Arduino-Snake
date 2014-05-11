@@ -2283,21 +2283,6 @@ tetrisClearLoop:
 
 
 /**
- * tetrisGamePreview
- * @param rArgument0L - witches image to show
- */
-tetrisGamePreview:
-
-	ret
-/* tetrisGamePreview end */
-
-
-
-/**********
- * OTHER
- *********/
-
-/**
  * isPixelSet
  * @param rArgument0L - X
  * @param rArgument0H - Y
