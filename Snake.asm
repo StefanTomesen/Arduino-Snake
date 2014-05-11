@@ -100,8 +100,10 @@
 	.EQU	MAX_PROGRAMS			= 8
 	.EQU	PROGRAM_DATA_SIZE		= 6
 	// Data structure
-	.EQU	oProgramX				= 0x00		// TODO: REMOVE WHEN OBSELETE
-	.EQU	oProgramY				= 0x01		// TODO: REMOVE WHEN OBSELETE
+	.EQU	oProgramX				= 0x00				// TODO Remove
+	.EQU	oProgramY				= 0x01				// TODO Remove
+	.EQU	oProgramIconL			= 0x00				// TODO Implement
+	.EQU	oProgramIconH			= 0x01				// TODO Implement
 	.EQU	oProgramAdressL			= 0x02
 	.EQU	oProgramAdressH			= 0x03
 	.EQU	oProgramPreviewAdressL	= 0x04
@@ -129,6 +131,10 @@
 	/**
 	 * Program constant definitions
 	 */
+
+	/* Program select menu */
+	.EQU	PROGRAM_SWAP_TIME		= 32
+	.EQU	PROGRAM_FRAME_TIME		= 64
 
 	/* Snake Game */
 	.EQU	SNAKE_UPDATE_TIME			= 16
@@ -218,6 +224,20 @@
 	.MACRO addiw 
 		subi	@0, LOW(-@2)
 		sbci	@1, HIGH(-@2)
+	.ENDMACRO
+
+	/**
+	 * Loads a constant to any register, regardless if they normally can't load constants
+	 * @param @0 - the register the constant is loaded to
+	 * @param @1 - the constant that is being loaded
+	 */
+	.MACRO loadConstant
+			.DEF	rTemp = r18
+		push	rTemp
+		ldi		rTemp, @1
+		mov		@0, rTemp
+		pop		rTemp
+			.UNDEF	rTemp
 	.ENDMACRO
 	
 	/**
@@ -3851,29 +3871,125 @@ initializeProgram:
 
 
 /**
- * Display a graphical menu that can be used to select program. Programs are represented by icons
- * that flicker between two different frames and by moving the joystick left or right, the programs
- * can be cycled. Moving the joystick up or down selects the program.
+ * Display a graphical menu that can be used to select a program. Programs are represented by icons
+ * that flicker between two different frames. By moving the joystick left or right, the program 
+ * selection can be cycled. Moving the joystick up or down runs the program.
  */
 programSelectMenu:
-		.DEF	rProgramCount = r2
-		.DEF	rProgramIndex = r3
-	
-	//initializeTimeri						// GIVES ERRORS: FIX
 
+	initializeTimeri	updateTimer, PROGRAM_SWAP_TIME
+	initializeTimeri	renderTimer, PROGRAM_FRAME_TIME
+
+		.DEF	rProgramCount		= r2
+		.DEF	rProgramIndex		= r16
+		.DEF	rFrameIndex			= r17
+		.DEF	rJoystickDirectionX = r3
+		.DEF	rJoystickDirectionY = r4
+		.DEF	rZero				= r5
+		
 	// Load the program count
 	ldi		YL, LOW(programCount)
 	ldi		YH, HIGH(programCount)
 	ld		rProgramCount, Y
 
-	// Set the index to 0
-	//ldi		rProgramIndex, 0			// GIVES ERRORS: FIX
+	// Initialize various variables
+	loadConstant	rZero, 0
+	mov		rProgramIndex, rZero		// Set the index to 0
+	mov		rFrameIndex, rZero			// Set the icon frame index to 0
+	mov		rJoystickDirectionX, rZero	// Initialize the joystick direction to the neutral position
+	mov		rJoystickDirectionY, rZero
+	
+programSelectLoop:
+	
+	// If the render timer has reset, update the icon
+	checkTimeri		renderTimer
+	cpi		rReturnL, 1
+	brne	skipIconUpdate
 
+	// Flip between the two icon frames
+	inc		rFrameIndex
+	andi	rFrameIndex, 0x1
 
+skipIconUpdate:
+	call	readJoystickDirection
+	
+	// Update the direction if the joystick isn't neutral
+	cpi		rReturnL, 0
+	brne	program_UpdateDirection
+	cpi		rReturnH, 0
+	brne	program_UpdateDirection
+	jmp		program_SkipDirectionUpdate
 
-		.UNDEF	rProgramIndex
+program_UpdateDirection:
+	mov		rJoystickDirectionX, rReturnL
+	mov		rJoystickDirectionY, rReturnH
+
+program_SkipDirectionUpdate:
+
+	// If the update timer has reset, cycle the program selection
+	checkTimeri		updateTimer
+	cpi		rReturnL, 1
+	brne	keepProgramSelection
+
+	// Cycle programs (if the joystick is neutral, this does nothing)
+	add		rProgramIndex, rJoystickDirectionX
+	cp		rProgramIndex, rZero					// If the index goes lower than the first index, select the last
+	brlt	selectLastProgram
+	cp		rProgramindex, rProgramCount			// If the index goes beyond the last index, select the first
+	brge	selectFirstProgram
+	jmp		keepProgramSelection					// If the selection moved to a valid index, keep the new value
+
+selectLastProgram:
+	mov		rProgramIndex, rProgramCount			// Wrap around to the first index
+
+selectFirstProgram:
+	mov		rProgramIndex, rZero					// Wrap around to the last index
+
+keepProgramSelection:
+
+	// Load a pointer to the program array
+	ldi		YL, LOW(programs)
+	ldi		YH, HIGH(programs)
+
+		.DEF	rTemp = r18
+
+	// Move the pointer to the selected program
+	ldi		rTemp, PROGRAM_DATA_SIZE
+	mul		rProgramIndex, rTemp
+	add		YL, rMulResL
+	adc		YH, rZero
+		
+		.UNDEF	rTemp	
+
+	// Moving the joystick up or down runs the selected program
+	cp		rJoystickDirectionY, rZero				// If neutral, don't run
+	breq	skipProgram2
+
+	// Run the program
+	ldd		ZL, Y + oProgramAdressL
+	ldd		ZH, Y + oProgramAdressH
+	icall
+
+skipProgram2:
+
+	// Draw the icon
+	mov		rArgument0L, rFrameIndex
+	ldd		ZL, Y + oProgramIconL
+	ldd		ZH, Y + oProgramIconH
+	icall
+
+	// Render the screen and run another iteration
+	call	render
+	jmp		programSelectLoop
+	
+	ret
+		.UNDEF	rZero
 		.UNDEF	rProgramCount
-ret
+		.UNDEF	rProgramIndex
+		.UNDEF	rFrameIndex	
+		.UNDEF	rJoystickDirectionX
+		.UNDEF	rJoystickDirectionY
+
 /* programSelectMenu end */
 
 
@@ -3905,7 +4021,8 @@ main:
 	addProgrami 7, 7, randomPixelDraw
 
 	// Set the timer going
-	// call initializeHardwareTimer2		// TODO enable hardware timer in main subroutine
+	// call		initializeHardwareTimer2		// TODO enable hardware timer in main subroutine
+	// call		programSelectMenu
 
 mainLoop:
 	call	clearMatrix
