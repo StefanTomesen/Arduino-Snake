@@ -434,7 +434,7 @@ timer2OverflowInterupt:
 
 
 /**
- * Program: TimerTest
+ * Program: Timer Test
  * Start runing the timer test
  */
 timerTest:
@@ -518,8 +518,8 @@ timerTestLoop:
 
 
 /**
- * Program: randomPixelDraw
- * Draws a number of random pixelels
+ * Program: Random Pixel Test
+ * Draws a number of random pixels
  */
 randomPixelDraw:	
 
@@ -1253,7 +1253,7 @@ clearSnakeTail:
 		.UNDEF	rZero	
 
 	ret
-/* drawSnakeHead end */
+/* clearSnakeTail end */
 
 
 
@@ -1468,19 +1468,31 @@ renderJoystickLoop:
 /* renderJoystick end */
 
 
-
-
-
-
 /**
  * Generate a random 3 bit value based on the noise in the joystick as well as the 
  * current timer value. It's possible to choose which axis the joystick noise is 
  * based on and subsequent calls to this function should use different axes to ensure
- * independent results.
+ * independent results. The higher the bit, the more random it is.
  * @param rArgument0L - Which joystick axis to base the randomization on (constants JOYSTICK_X_AXIS and JOYSTICK_Y_AXIS)
  * @return rReturnL - A random value in the range 0 - 7 (3bit)
  */
-generateRandom3BitValue:		// TODO change to 4 bit value instead
+ generateRandom3BitValue:
+	call	generateRandom4BitValue		// Generate a 4 bit value
+	lsr		rReturnL					// Drop the last, least random bit
+	
+	ret
+/* generateRandom3BitValue end */
+
+
+/**
+ * Generate a random 4 bit value based on the noise in the joystick as well as the 
+ * current timer value. It's possible to choose which axis the joystick noise is 
+ * based on and subsequent calls to this function should use different axes to ensure
+ * independent results. The higher the bit, the more random it is.
+ * @param rArgument0L - Which joystick axis to base the randomization on (constants JOYSTICK_X_AXIS and JOYSTICK_Y_AXIS)
+ * @return rReturnL - A random value in the range 0 - 15 (4bit)
+ */
+generateRandom4BitValue:
 
 		.DEF	rRandomNumber = r18
 		.DEF	rTimerValueL  = r19
@@ -1494,26 +1506,20 @@ generateRandom3BitValue:		// TODO change to 4 bit value instead
 	lds		rTimerValueL, TCNT2
 	add		rRandomNumber, rTimerValueL
 
-	// Reverses the order of the 3 lowest bits
-	ldi		rOutputValue, 0
-	bst		rRandomNumber, 0
-	bld		rOutputValue, 2
-	bst		rRandomNumber, 2
-	bld		rOutputValue, 0
-
-	/*
-	// Reverses the order of the 4 lowest bits
+	// Reverses the order of the 4 lowest bits and discards the rest
 	ldi		rOutputValue, 0
 
 	bst		rRandomNumber, 0
 	bld		rOutputValue, 3
+
 	bst		rRandomNumber, 1
 	bld		rOutputValue, 2
+
 	bst		rRandomNumber, 2
 	bld		rOutputValue, 1
+
 	bst		rRandomNumber, 3
 	bld		rOutputValue, 0
-	*/
 
 	mov rReturnL, rOutputValue
 		
@@ -1522,7 +1528,7 @@ generateRandom3BitValue:		// TODO change to 4 bit value instead
 		.UNDEF	rOutputValue
 	
 	ret
-/* generateRandom3BitValue end */
+/* generateRandom4BitValue end */
 
 
 
@@ -1839,7 +1845,7 @@ randomLogoAlt:
 
 
 /**
- * Draws the logo for the program 'Joystick Test', alternating between two different frames.
+ * Draws the logo for the program 'Render Joystick', alternating between two different frames.
  * @param rArgument0L - Which of the two frames that is draw
  */
 drawJoystickLogo:
@@ -2035,39 +2041,6 @@ drawSkullMatrix:
 
 	ret
 /* drawSkullMatrix end */	
-	
-
-
-/**
- * Inverts all the bits in the matrix
- */
-invertMatrix:
-		/* Register used for the pixels in a row */
-		.DEF	rRowBits	= r18
-		.DEF	rIterator	= r19
-
-	// Load a pointer to the matrix
-	ldi		YH, HIGH(matrix)
-	ldi		YL, LOW(matrix)
-
-	// Loop through all the 8 rows
-	ldi		rIterator, 8
-invertRowBits:
-	// Invert one row byte
-	ld		rRowBits, Y			// Load bits
-	com		rRowBits			// Invert bits
-	st		Y+, rRowBits		// Store bits and increment the pointer
-
-	// Repeat for all the rows
-	dec		rIterator			
-	cpi		rIterator, 0
-	brne	invertRowBits
-
-		.UNDEF	rRowBits
-		.UNDEF	rIterator
-
-	ret
-/* invertMatrix end */
 
 
 
@@ -2198,6 +2171,39 @@ clearPixelcolumnShiftEnd:
 
 	ret
 /* clearPixel end */
+
+
+
+/**
+ * Inverts all the bits in the matrix
+ */
+invertMatrix:
+		/* Register used for the pixels in a row */
+		.DEF	rRowBits	= r18
+		.DEF	rIterator	= r19
+
+	// Load a pointer to the matrix
+	ldi		YH, HIGH(matrix)
+	ldi		YL, LOW(matrix)
+
+	// Loop through all the 8 rows
+	ldi		rIterator, 8
+invertRowBits:
+	// Invert one row byte
+	ld		rRowBits, Y			// Load bits
+	com		rRowBits			// Invert bits
+	st		Y+, rRowBits		// Store bits and increment the pointer
+
+	// Repeat for all the rows
+	dec		rIterator			
+	cpi		rIterator, 0
+	brne	invertRowBits
+
+		.UNDEF	rRowBits
+		.UNDEF	rIterator
+
+	ret
+/* invertMatrix end */
 
 
 
@@ -2441,7 +2447,7 @@ readLoop:
 		.UNDEF	rADCSRA
 
 	ret
-/* loadJoystick end */
+/* readJoystick end */
 
 
 
@@ -2510,7 +2516,7 @@ readLoop:
 		.UNDEF	rJoystickX
 
 	ret
-/* joystickValueTo8Bit end */
+/* readJoystickDirection end */
 
 
 
@@ -2542,9 +2548,9 @@ joystickValueTo8Bit:
 
 
 /**
- * return the direction  depending on the joystick values
- * @param rArgument0L - X (0 - 255)
- * @param rArgument1L - Y (0 - 255)
+ * Get the current direction based on the joystick position. Diagonals are not allowed and count as neutral.
+ * @param rArgument0L - The 8 bit X position of the joystick (0 - 255)
+ * @param rArgument1L - The 8 bit Y position of the joystick (0 - 255)
  * @return rReturnL - Returns the joystick X direction (-1 is left, 0 is neutral, 1 is right)
  * @return rReturnH - Returns the joystick Y direction (-1 is up, 0 is neutral, 1 is down)
  */
