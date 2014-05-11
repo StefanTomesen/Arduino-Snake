@@ -272,10 +272,10 @@
 	.ENDMACRO
 	
 	/**
-	 * ???
-	 * @param @0 - ???
-	 * @param @1 - ???
-	 * @param @2 - ???
+	 * Add programs to the main menu
+	 * @param @0 - the X position of the program pixel
+	 * @param @1 - the Y position of the program pixel
+	 * @param @2 - the label of the program subroutine
 	 */
 	.MACRO	addProgrami
 		ldi		rArgument0L, @0			// X
@@ -286,11 +286,12 @@
 	.ENDMACRO
 	
 	/**
-	 * ???
-	 * @param @0 - ???
-	 * @param @1 - ???
-	 * @param @2 - ???
-	 * @param @3 - ???
+	 * Determines whether two positions intersect
+	 * @param @0 - The X coordinate of the first position
+	 * @param @1 - The Y coordinate of the first position
+	 * @param @2 - The X coordinate of the second position
+	 * @param @3 - The Y coordinate of the second position
+	 * @return rReturnL - Whether or not the points intersect (boolean)
 	 */
 	.MACRO	checkCollisionr
 		mov		rArgument0L, @0			// X
@@ -301,11 +302,12 @@
 	.ENDMACRO
 	
 	/**
-	 * ???
-	 * @param @0 - ???
-	 * @param @1 - ???
-	 * @param @2 - ???
-	 * @param @3 - ???
+	 * Determines whether two positions intersect
+	 * @param @0 - The X coordinate of the first position
+	 * @param @1 - The Y coordinate of the first position
+	 * @param @2 - The X coordinate of the second position
+	 * @param @3 - The Y coordinate of the second position
+	 * @return rReturnL - Whether or not the points intersect (boolean)
 	 */	
 	.MACRO	checkCollisioni
 		ldi		rArgument0L, @0			// X
@@ -832,7 +834,7 @@ snakeEndRender:
 	checkTimeri updateTimer			// Returns boolean whether the timer has reached it's target time and reset	
 	cpi		rReturnL, 1
 	breq	snakeEndUpdate			// If an update was recieved, blink
-	jmp		snakeEndRender		// If an update didn't occur, render and wait some more
+	jmp		snakeEndRender			// If an update didn't occur, render and wait some more
 
 snakeEndUpdate:
 
@@ -1346,7 +1348,7 @@ initializeFlashFood:
 
 /******************************************************************************************
  * Program: Asteroids																	  *
- * ASTEROIDS!																			  *
+ * The classical game of asteroids														  *
  *****************************************************************************************/
  asteroids:
 
@@ -1418,7 +1420,7 @@ renderJoystickLoop:
 	lsr5	rTemp
 	mov		rColumn, rTemp
 
-	// rverse order rColumn (7-0 -> 0-7)
+	// reverse order rColumn (7-0 -> 0-7)
 	ldi		rTempI, 7
 	sub		rTempI, rColumn
 	mov		rColumn, rTempI
@@ -1467,18 +1469,22 @@ renderJoystickLoop:
 
 
 
+
+
+
 /**
  * Generate a random 3 bit value based on the noise in the joystick as well as the 
  * current timer value. It's possible to choose which axis the joystick noise is 
- * based on and subsequent calls to this functino should use different axes to ensure
+ * based on and subsequent calls to this function should use different axes to ensure
  * independent results.
  * @param rArgument0L - Which joystick axis to base the randomization on (constants JOYSTICK_X_AXIS and JOYSTICK_Y_AXIS)
  * @return rReturnL - A random value in the range 0 - 7 (3bit)
  */
-generateRandom3BitValue:
+generateRandom3BitValue:		// TODO change to 4 bit value instead
 
 		.DEF	rRandomNumber = r18
-		.DEF	rTimerValueL = r19
+		.DEF	rTimerValueL  = r19
+		.DEF	rOutputValue  = r20
 
 	// Get a 10 bit value (2 bytes) from the joystick based on the argument to this subroutine
 	call	readJoystick
@@ -1489,23 +1495,579 @@ generateRandom3BitValue:
 	add		rRandomNumber, rTimerValueL
 
 	// Reverses the order of the 3 lowest bits
+	ldi		rOutputValue, 0
 	bst		rRandomNumber, 0
-	bld		rRandomNumber, 7
+	bld		rOutputValue, 2
 	bst		rRandomNumber, 2
-	bld		rRandomNumber, 0
-	bst		rRandomNumber, 7
-	bld		rRandomNumber, 2
+	bld		rOutputValue, 0
 
-	// Mask out the 3 lowest bits we're interested in
-	andi	rRandomNumber, 0b00000111
+	/*
+	// Reverses the order of the 4 lowest bits
+	ldi		rOutputValue, 0
 
-	mov rReturnL, rRandomNumber
+	bst		rRandomNumber, 0
+	bld		rOutputValue, 3
+	bst		rRandomNumber, 1
+	bld		rOutputValue, 2
+	bst		rRandomNumber, 2
+	bld		rOutputValue, 1
+	bst		rRandomNumber, 3
+	bld		rOutputValue, 0
+	*/
+
+	mov rReturnL, rOutputValue
 		
 		.UNDEF	rRandomNumber
 		.UNDEF	rTimerValueL
+		.UNDEF	rOutputValue
 	
 	ret
 /* generateRandom3BitValue end */
+
+
+
+/**
+ * Draws the logo for the program 'Snake Game', alternating between two different frames.
+ * @param rArgument0L - Which of the two frames that is draw
+ */
+drawSnakeLogo:
+		/* Register used for the pixels in a row */
+		.DEF	rRowBits	= r18
+
+	// Get a pointer to the matrix
+	ldi		YH, HIGH(matrix)
+	ldi		YL, LOW(matrix)
+
+	// Go to the correct version of the logo and draw it
+	cpi		rArgument0L, 0
+	brne	snakeLogoAlt
+
+	// Draw the first version of the logo
+	ldi		rRowBits, 0b11111111
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b10000001
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b10100101
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b10100001
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b10100001
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b10111001
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b10000001
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b11111111
+	st		Y+, rRowBits
+
+	ret									// Return
+
+snakeLogoAlt:
+	// Draw the second version of the logo
+	ldi		rRowBits, 0b11111111
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b10000001
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b10110101
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b10100001
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b10100001
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b10110001
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b10000001
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b11111111
+	st		Y+, rRowBits
+
+	ret									// Return
+
+		.UNDEF	rRowBits
+/* drawSnakeLogo end */	
+
+
+
+/**
+ * Draws the logo for the program 'Maze Game', alternating between two different frames.
+ * @param rArgument0L - Which of the two frames that is draw
+ */
+drawMazeLogo:
+		/* Register used for the pixels in a row */
+		.DEF	rRowBits	= r18
+
+	// Get a pointer to the matrix
+	ldi		YH, HIGH(matrix)
+	ldi		YL, LOW(matrix)
+
+	// Go to the correct version of the logo and draw it
+	cpi		rArgument0L, 0
+	brne	mazeLogoAlt
+
+	// Draw the first version of the logo
+	ldi		rRowBits, 0b11111111
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b11101001
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b10101101
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b10101001
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b10000011
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b11011001
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b10000101
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b11111111
+	st		Y+, rRowBits
+
+	ret									// Return
+
+mazeLogoAlt:
+	// Draw the second version of the logo
+	ldi		rRowBits, 0b11111111
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b10101001
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b11101101
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b10101001
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b10000011
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b11011001
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b10000101
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b11111111
+	st		Y+, rRowBits
+
+	ret									// Return
+
+		.UNDEF	rRowBits
+/* drawMazeLogo end */	
+
+
+
+
+/**
+ * Draws the logo for the program 'Asteroids', alternating between two different frames.
+ * @param rArgument0L - Which of the two frames that is draw
+ */
+drawAsteroidsLogo:
+		/* Register used for the pixels in a row */
+		.DEF	rRowBits	= r18
+
+	// Get a pointer to the matrix
+	ldi		YH, HIGH(matrix)
+	ldi		YL, LOW(matrix)
+
+	// Go to the correct version of the logo and draw it
+	cpi		rArgument0L, 0
+	brne	asteroidsLogoAlt
+
+	// Draw the first version of the logo
+	ldi		rRowBits, 0b11111111
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b10001001
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b10100001
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b10000001
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b10110011
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b10100001
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b10000001
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b11111111
+	st		Y+, rRowBits
+
+	ret									// Return
+
+asteroidsLogoAlt:
+	// Draw the second version of the logo
+	ldi		rRowBits, 0b11111111
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b11000001
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b10000101
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b10000001
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b10110001
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b10100101
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b10000001
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b11111111
+	st		Y+, rRowBits
+
+	ret									// Return
+
+		.UNDEF	rRowBits
+/* drawAsteroidsLogo end */	
+
+
+
+/**
+ * Draws the logo for the program 'Timer', alternating between two different frames.
+ * @param rArgument0L - Which of the two frames that is draw
+ */
+drawTimerLogo:
+		/* Register used for the pixels in a row */
+		.DEF	rRowBits	= r18
+
+	// Get a pointer to the matrix
+	ldi		YH, HIGH(matrix)
+	ldi		YL, LOW(matrix)
+
+	// Go to the correct version of the logo and draw it
+	cpi		rArgument0L, 0
+	brne	timerLogoAlt
+
+	// Draw the first version of the logo
+	ldi		rRowBits, 0b11111111
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b10000001
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b11010011
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b11101111
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b11110111
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b11000011
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b10011001
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b11111111
+	st		Y+, rRowBits
+
+	ret									// Return
+
+timerLogoAlt:
+	// Draw the second version of the logo
+	ldi		rRowBits, 0b11111111
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b10000001
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b11000011
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b11100111
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b11100111
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b11010011
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b10111101
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b11111111
+	st		Y+, rRowBits
+
+	ret									// Return
+
+		.UNDEF	rRowBits
+/* drawTimerLogo end */	
+
+
+
+/**
+ * Draws the logo for the program 'Random', alternating between two different frames.
+ * @param rArgument0L - Which of the two frames that is draw
+ */
+drawRandomLogo:
+		/* Register used for the pixels in a row */
+		.DEF	rRowBits	= r18
+
+	// Get a pointer to the matrix
+	ldi		YH, HIGH(matrix)
+	ldi		YL, LOW(matrix)
+
+	// Go to the correct version of the logo and draw it
+	cpi		rArgument0L, 0
+	brne	randomLogoAlt
+
+	// Draw the first version of the logo
+	ldi		rRowBits, 0b11111111
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b10001001
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b11000101
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b10110101
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b10100001
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b11001011
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b10010101
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b11111111
+	st		Y+, rRowBits
+
+	ret									// Return
+
+randomLogoAlt:
+	// Draw the second version of the logo
+	ldi		rRowBits, 0b11111111
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b10100101
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b10010001
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b11000011
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b10001001
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b10100101
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b10001011
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b11111111
+	st		Y+, rRowBits
+
+	ret									// Return
+
+		.UNDEF	rRowBits
+/* drawRandomLogo end */	
+
+
+
+
+/**
+ * Draws the logo for the program 'Joystick Test', alternating between two different frames.
+ * @param rArgument0L - Which of the two frames that is draw
+ */
+drawJoystickLogo:
+		/* Register used for the pixels in a row */
+		.DEF	rRowBits	= r18
+
+	// Get a pointer to the matrix
+	ldi		YH, HIGH(matrix)
+	ldi		YL, LOW(matrix)
+
+	// Go to the correct version of the logo and draw it
+	cpi		rArgument0L, 0
+	brne	joystickLogoAlt
+
+	// Draw the first version of the logo
+	ldi		rRowBits, 0b11111111
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b10000001
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b10011001
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b10011001
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b10011001
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b10111101
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b10000001
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b11111111
+	st		Y+, rRowBits
+
+	ret									// Return
+
+joystickLogoAlt:
+	// Draw the second version of the logo
+	ldi		rRowBits, 0b11111111
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b10000001
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b10000111
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b10001101
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b10011001
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b10111101
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b10000001
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b11111111
+	st		Y+, rRowBits
+
+	ret									// Return
+
+		.UNDEF	rRowBits
+/* drawJoystickLogo end */	
+
+
+
+
+/**
+ * Set the bits in the matrix with a smiley
+ */
+drawSnakeHeadMatrix:
+		/* Register used for the pixels in a row */
+		.DEF	rRowBits	= r18
+
+	// Initialize the matrix with a smiley set
+	ldi		YH, HIGH(matrix)	// Set Y to matrix address
+	ldi		YL, LOW(matrix)
+	ldi		rRowBits, 0b11100111
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b10111101
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b11111111
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b10100101
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b10100101
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b11000011
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b01100110
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b00111100
+	st		Y+, rRowBits
+
+		.UNDEF	rRowBits
+
+	ret
+/* drawSnakeHeadMatrix end */	
+
+
+
+
+/**
+ * Set the bits in the matrix with a smiley
+ */
+drawSmileyMatrix:
+		/* Register used for the pixels in a row */
+		.DEF	rRowBits	= r18
+
+	// Initialize the matrix with a smiley set
+	ldi		YH, HIGH(matrix)	// Set Y to matrix address
+	ldi		YL, LOW(matrix)
+	ldi		rRowBits, 0b10000001
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b00100100
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b00100100
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b00011000
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b01000010
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b01000010
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b00111100
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b10000001
+	st		Y+, rRowBits
+
+		.UNDEF	rRowBits
+
+	ret
+/* drawSmileyMatrix end */	
+
+
+
+/**
+ * Set the bits in the matrix with a templarMatrix
+ */
+drawTemplarMatrix:
+		/* Register used for the pixels in a row */
+		.DEF	rRowBits	= r18
+
+	// Initialize the matrix with a templar cross symbol
+	ldi		YH, HIGH(matrix)	// Set Y to matrix address
+	ldi		YL, LOW(matrix)
+	ldi		rRowBits, 0b11011111
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b11011111
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b11011111
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b11011111
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b00000000
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b11011111
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b00000000
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b11011111
+	st		Y+, rRowBits
+
+		.UNDEF	rRowBits
+
+	ret
+/* drawTemplarMatrix end */	
+
+
+
+/**
+ * Set the bits in the matrix with a skull
+ */
+drawSkullMatrix:
+		/* Register used for the pixels in a row */
+		.DEF	rRowBits	= r18
+
+	// Initialize the matrix with a skull
+	ldi		YH, HIGH(matrix)	// Set Y to matrix address
+	ldi		YL, LOW(matrix)
+	ldi		rRowBits, 0b01111110 
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b11111111
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b10011001
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b11111111
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b11111111
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b01111110 
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b01011010
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b00000000
+	st		Y+, rRowBits
+
+		.UNDEF	rRowBits
+
+	ret
+/* drawSkullMatrix end */	
+	
+
+
+/**
+ * Inverts all the bits in the matrix
+ */
+invertMatrix:
+		/* Register used for the pixels in a row */
+		.DEF	rRowBits	= r18
+		.DEF	rIterator	= r19
+
+	// Load a pointer to the matrix
+	ldi		YH, HIGH(matrix)
+	ldi		YL, LOW(matrix)
+
+	// Loop through all the 8 rows
+	ldi		rIterator, 8
+invertRowBits:
+	// Invert one row byte
+	ld		rRowBits, Y			// Load bits
+	com		rRowBits			// Invert bits
+	st		Y+, rRowBits		// Store bits and increment the pointer
+
+	// Repeat for all the rows
+	dec		rIterator			
+	cpi		rIterator, 0
+	brne	invertRowBits
+
+		.UNDEF	rRowBits
+		.UNDEF	rIterator
+
+	ret
+/* invertMatrix end */
 
 
 
@@ -1537,6 +2099,159 @@ skipCollidedWithFood:
 		.UNDEF	rHasCollided
 	ret
 /* checkCollision end */
+
+
+
+/**
+ * Draws a pixel in the matrix at the sepcified location
+ * @param rArgument0L - The column (X) of the pixel
+ * @param rArgument1L - The row (Y) of the pixel
+ */
+setPixel:
+		.DEF	rRow		= r18
+		.DEF	rColumn		= r19
+		.DEF	rRowMask	= r20
+		.DEF	rZero		= r21
+
+	// Load the matrix adress into 16 bit register Y (LOW + HIGH)
+	mov		rColumn,	rArgument0L
+	mov		rRow,		rArgument1L
+
+	// Assert coordinates X & Y < 8 (unsigned)
+	cpi		rRow, 8
+	brlo	setValidPixel
+	cpi		rColumn, 8
+	brlo	setValidPixel
+	call	terminate
+setValidPixel:
+
+	// convert value to mask
+	ldi		rRowMask, 0b10000000
+setPixelColumnShiftLoop:
+	cpi		rColumn, 0
+	breq	setPixelColumnShiftEnd
+	subi	rColumn, 1
+	lsr		rRowMask
+	jmp		setPixelColumnShiftLoop
+setPixelColumnShiftEnd:
+
+	ldi		YH, HIGH(matrix)
+	ldi		YL, LOW(matrix)
+	ldi		rZero, 0
+	add		YL,	rRow
+	adc		YH, rZero
+	ld		rRow, Y
+	or		rRow, rRowMask
+	st		Y, rRow
+
+		.UNDEF	rRow
+		.UNDEF	rColumn
+		.UNDEF	rRowMask
+		.UNDEF	rZero
+
+	ret
+/* setPixel end */
+
+
+
+/**
+ * Clears a pixel in the matrix at the sepcified location
+ * @param rArgument0L - The column (X) of the pixel
+ * @param rArgument1L - The row (Y) of the pixel
+ */
+clearPixel:
+		.DEF	rRow		= r18
+		.DEF	rColumn		= r19
+		.DEF	rRowMask	= r20
+		.DEF	rLocalTemp	= r21
+
+	// Load the matrix adress into 16 bit register Y (LOW + HIGH)
+	mov		rColumn,	rArgument0L
+	mov		rRow,		rArgument1L
+
+	// convert value to mask
+	ldi		rRowMask, 0b10000000
+clearPixelcolumnShiftLoop:
+	cpi		rColumn, 0
+	breq	clearPixelcolumnShiftEnd
+	subi	rColumn, 1
+	lsr		rRowMask
+	jmp		clearPixelcolumnShiftLoop
+clearPixelcolumnShiftEnd:
+	
+	// Invert row mask in order to clear
+	com		rRowMask
+
+	ldi		YH, HIGH(matrix)
+	ldi		YL, LOW(matrix)
+	ldi		rLocalTemp, 0
+	add		YL,	rRow
+	adc		YH, rLocalTemp
+	ld		rRow, Y
+	and		rRow, rRowMask
+	st		Y, rRow
+
+		.UNDEF	rRow
+		.UNDEF	rColumn
+		.UNDEF	rRowMask
+		.UNDEF	rLocalTemp
+
+	ret
+/* clearPixel end */
+
+
+
+/**
+ * Clear the matrix
+ */
+clearMatrix:
+		/* Register used for the pixels in a row */
+		.DEF	rRowBits	= r18
+
+	// clear the entire matrix
+	ldi		YH, HIGH(matrix)
+	ldi		YL, LOW(matrix)
+	clr		rRowBits
+	st		Y+, rRowBits
+	st		Y+, rRowBits
+	st		Y+, rRowBits
+	st		Y+, rRowBits
+	st		Y+, rRowBits
+	st		Y+, rRowBits
+	st		Y+, rRowBits
+	st		Y+, rRowBits
+
+		.UNDEF	rRowBits
+
+	ret
+/* clearMatrix end */
+
+
+
+/**
+ * Set all the bits in the matrix
+ */
+setMatrix:
+		/* Register used for the pixels in a row */
+		.DEF	rRowBits	= r18
+
+	// Initialize the matrix with a full set
+	ldi		YH, HIGH(matrix)	// Set Y to matrix address
+	ldi		YL, LOW(matrix)
+	ser		rRowBits
+	st		Y+, rRowBits
+	st		Y+, rRowBits
+	st		Y+, rRowBits
+	st		Y+, rRowBits
+	st		Y+, rRowBits
+	st		Y+, rRowBits
+	st		Y+, rRowBits
+	st		Y+, rRowBits
+
+		.UNDEF	rRowBits
+
+	ret
+/* setMatrix end */
 
 
 
@@ -1974,7 +2689,7 @@ checkTimer:
 		.DEF	rCompareL = r20
 		.DEF	rCompareH = r21
 
-	// Get pointer adress
+	// Get the pointer to the timer
 	mov		YL, rArgument0L
 	mov		YH, rArgument0H
 
@@ -2036,329 +2751,6 @@ checkTimerSkipReset:
 
 	ret
 /* initializeTimer2 end */
-
-
-
-/**
- * Draws a pixel in the matrix at the sepcified location
- * @param rArgument0L - The column (X) of the pixel
- * @param rArgument1L - The row (Y) of the pixel
- */
-setPixel:
-		.DEF	rRow		= r18
-		.DEF	rColumn		= r19
-		.DEF	rRowMask	= r20
-		.DEF	rZero		= r21
-
-	// Load the matrix adress into 16 bit register Y (LOW + HIGH)
-	mov		rColumn,	rArgument0L
-	mov		rRow,		rArgument1L
-
-	// Assert coordinates X & Y < 8
-	cpi		rRow, 8
-	brlo	setValidPixel
-	cpi		rColumn, 8
-	brlo	setValidPixel
-	call	terminate
-setValidPixel:
-
-	// convert value to mask
-	ldi		rRowMask, 0b10000000
-setPixelColumnShiftLoop:
-	cpi		rColumn, 0
-	breq	setPixelColumnShiftEnd
-	subi	rColumn, 1
-	lsr		rRowMask
-	jmp		setPixelColumnShiftLoop
-setPixelColumnShiftEnd:
-
-	ldi		YH, HIGH(matrix)
-	ldi		YL, LOW(matrix)
-	ldi		rZero, 0
-	add		YL,	rRow
-	adc		YH, rZero
-	ld		rRow, Y
-	or		rRow, rRowMask
-	st		Y, rRow
-
-		.UNDEF	rRow
-		.UNDEF	rColumn
-		.UNDEF	rRowMask
-		.UNDEF	rZero
-
-	ret
-/* setPixel end */
-
-
-
-/**
- * Clears a pixel in the matrix at the sepcified location
- * @param rArgument0L - The column (X) of the pixel
- * @param rArgument1L - The row (Y) of the pixel
- */
-clearPixel:
-		.DEF	rRow		= r18
-		.DEF	rColumn		= r19
-		.DEF	rRowMask	= r20
-		.DEF	rLocalTemp	= r21
-
-	// Load the matrix adress into 16 bit register Y (LOW + HIGH)
-	mov		rColumn,	rArgument0L
-	mov		rRow,		rArgument1L
-
-	// convert value to mask
-	ldi		rRowMask, 0b10000000
-clearPixelcolumnShiftLoop:
-	cpi		rColumn, 0
-	breq	clearPixelcolumnShiftEnd
-	subi	rColumn, 1
-	lsr		rRowMask
-	jmp		clearPixelcolumnShiftLoop
-clearPixelcolumnShiftEnd:
-	
-	// Invert row mask in order to clear
-	com		rRowMask
-
-	ldi		YH, HIGH(matrix)
-	ldi		YL, LOW(matrix)
-	ldi		rLocalTemp, 0
-	add		YL,	rRow
-	adc		YH, rLocalTemp
-	ld		rRow, Y
-	and		rRow, rRowMask
-	st		Y, rRow
-
-		.UNDEF	rRow
-		.UNDEF	rColumn
-		.UNDEF	rRowMask
-		.UNDEF	rLocalTemp
-
-	ret
-/* clearPixel end */
-
-
-
-/**
- * Clear the matrix
- */
-clearMatrix:
-		/* Register used for the pixels in a row */
-		.DEF	rRowBits	= r18
-
-	// clear the entire matrix
-	ldi		YH, HIGH(matrix)
-	ldi		YL, LOW(matrix)
-	clr		rRowBits
-	st		Y+, rRowBits
-	st		Y+, rRowBits
-	st		Y+, rRowBits
-	st		Y+, rRowBits
-	st		Y+, rRowBits
-	st		Y+, rRowBits
-	st		Y+, rRowBits
-	st		Y+, rRowBits
-
-		.UNDEF	rRowBits
-
-	ret
-/* clearMatrix end */
-
-
-
-/**
- * Set all the bits in the matrix
- */
-setMatrix:
-		/* Register used for the pixels in a row */
-		.DEF	rRowBits	= r18
-
-	// Initialize the matrix with a full set
-	ldi		YH, HIGH(matrix)	// Set Y to matrix address
-	ldi		YL, LOW(matrix)
-	ser		rRowBits
-	st		Y+, rRowBits
-	st		Y+, rRowBits
-	st		Y+, rRowBits
-	st		Y+, rRowBits
-	st		Y+, rRowBits
-	st		Y+, rRowBits
-	st		Y+, rRowBits
-	st		Y+, rRowBits
-
-		.UNDEF	rRowBits
-
-	ret
-/* setMatrix end */
-
-
-
-/**
- * Set the bits in the matrix with a smiley
- */
-drawSnakeHeadMatrix:
-		/* Register used for the pixels in a row */
-		.DEF	rRowBits	= r18
-
-	// Initialize the matrix with a smiley set
-	ldi		YH, HIGH(matrix)	// Set Y to matrix address
-	ldi		YL, LOW(matrix)
-	ldi		rRowBits, 0b11100111
-	st		Y+, rRowBits
-	ldi		rRowBits, 0b10111101
-	st		Y+, rRowBits
-	ldi		rRowBits, 0b11111111
-	st		Y+, rRowBits
-	ldi		rRowBits, 0b10100101
-	st		Y+, rRowBits
-	ldi		rRowBits, 0b10100101
-	st		Y+, rRowBits
-	ldi		rRowBits, 0b11000011
-	st		Y+, rRowBits
-	ldi		rRowBits, 0b01100110
-	st		Y+, rRowBits
-	ldi		rRowBits, 0b00111100
-	st		Y+, rRowBits
-
-		.UNDEF	rRowBits
-
-	ret
-/* drawSnakeHeadMatrix end */	
-
-
-
-
-/**
- * Set the bits in the matrix with a smiley
- */
-drawSmileyMatrix:
-		/* Register used for the pixels in a row */
-		.DEF	rRowBits	= r18
-
-	// Initialize the matrix with a smiley set
-	ldi		YH, HIGH(matrix)	// Set Y to matrix address
-	ldi		YL, LOW(matrix)
-	ldi		rRowBits, 0b10000001
-	st		Y+, rRowBits
-	ldi		rRowBits, 0b00100100
-	st		Y+, rRowBits
-	ldi		rRowBits, 0b00100100
-	st		Y+, rRowBits
-	ldi		rRowBits, 0b00011000
-	st		Y+, rRowBits
-	ldi		rRowBits, 0b01000010
-	st		Y+, rRowBits
-	ldi		rRowBits, 0b01000010
-	st		Y+, rRowBits
-	ldi		rRowBits, 0b00111100
-	st		Y+, rRowBits
-	ldi		rRowBits, 0b10000001
-	st		Y+, rRowBits
-
-		.UNDEF	rRowBits
-
-	ret
-/* drawSmileyMatrix end */	
-
-
-
-/**
- * Set the bits in the matrix with a templarMatrix
- */
-drawTemplarMatrix:
-		/* Register used for the pixels in a row */
-		.DEF	rRowBits	= r18
-
-	// Initialize the matrix with a templar cross symbol
-	ldi		YH, HIGH(matrix)	// Set Y to matrix address
-	ldi		YL, LOW(matrix)
-	ldi		rRowBits, 0b11011111
-	st		Y+, rRowBits
-	ldi		rRowBits, 0b11011111
-	st		Y+, rRowBits
-	ldi		rRowBits, 0b11011111
-	st		Y+, rRowBits
-	ldi		rRowBits, 0b11011111
-	st		Y+, rRowBits
-	ldi		rRowBits, 0b00000000
-	st		Y+, rRowBits
-	ldi		rRowBits, 0b11011111
-	st		Y+, rRowBits
-	ldi		rRowBits, 0b00000000
-	st		Y+, rRowBits
-	ldi		rRowBits, 0b11011111
-	st		Y+, rRowBits
-
-		.UNDEF	rRowBits
-
-	ret
-/* drawTemplarMatrix end */	
-
-
-
-/**
- * Set the bits in the matrix with a skull
- */
-drawSkullMatrix:
-		/* Register used for the pixels in a row */
-		.DEF	rRowBits	= r18
-
-	// Initialize the matrix with a skull
-	ldi		YH, HIGH(matrix)	// Set Y to matrix address
-	ldi		YL, LOW(matrix)
-	ldi		rRowBits, 0b01111110 
-	st		Y+, rRowBits
-	ldi		rRowBits, 0b11111111
-	st		Y+, rRowBits
-	ldi		rRowBits, 0b10011001
-	st		Y+, rRowBits
-	ldi		rRowBits, 0b11111111
-	st		Y+, rRowBits
-	ldi		rRowBits, 0b11111111
-	st		Y+, rRowBits
-	ldi		rRowBits, 0b01111110 
-	st		Y+, rRowBits
-	ldi		rRowBits, 0b01011010
-	st		Y+, rRowBits
-	ldi		rRowBits, 0b00000000
-	st		Y+, rRowBits
-
-		.UNDEF	rRowBits
-
-	ret
-/* drawSkullMatrix end */	
-	
-
-
-/**
- * Inverts all the bits in the matrix
- */
-invertMatrix:
-		/* Register used for the pixels in a row */
-		.DEF	rRowBits	= r18
-		.DEF	rIterator	= r19
-
-	// Load a pointer to the matrix
-	ldi		YH, HIGH(matrix)
-	ldi		YL, LOW(matrix)
-
-	// Loop through all the 8 rows
-	ldi		rIterator, 8
-invertRowBits:
-	// Invert one row byte
-	ld		rRowBits, Y			// Load bits
-	com		rRowBits			// Invert bits
-	st		Y+, rRowBits		// Store bits and increment the pointer
-
-	// Repeat for all the rows
-	dec		rIterator			
-	cpi		rIterator, 0
-	brne	invertRowBits
-
-		.UNDEF	rRowBits
-		.UNDEF	rIterator
-
-	ret
-/* invertMatrix end */
 
 
 
