@@ -97,17 +97,13 @@
 	
 	/* Program */
 	// Constants
-	.EQU	MAX_PROGRAMS			= 8
-	.EQU	PROGRAM_DATA_SIZE		= 6
+	.EQU	MAX_PROGRAMS			= 9
+	.EQU	PROGRAM_DATA_SIZE		= 4
 	// Data structure
-	.EQU	oProgramX				= 0x00				// TODO Remove
-	.EQU	oProgramY				= 0x01				// TODO Remove
-	.EQU	oProgramIconL			= 0x00				// TODO Implement
-	.EQU	oProgramIconH			= 0x01				// TODO Implement
+	.EQU	oProgramIconL			= 0x00
+	.EQU	oProgramIconH			= 0x01
 	.EQU	oProgramAdressL			= 0x02
 	.EQU	oProgramAdressH			= 0x03
-	.EQU	oProgramPreviewAdressL	= 0x04
-	.EQU	oProgramPreviewAdressH	= 0x05
 
 	/* Tetris */
 	// Constants
@@ -152,6 +148,9 @@
 	/* Random test */
 	.EQU	RANDOM_NUMBER_COUNT			= 16
 	.EQU	RANDOM_DISPLAY_TIME			= 128
+
+	/* Error test */
+	.EQU	ERROR_DISPLAY_TIME			= 128
 
 	/* Tetris Game */
 	.EQU	TETRIS_UPDATE_TIME			= 64
@@ -324,14 +323,27 @@
 	 * @param @1 - the Y position of the program pixel
 	 * @param @2 - the label of the program subroutine
 	 */
-	.MACRO	addProgrami
+	/*.MACRO	addProgrami
 		ldi		rArgument0L, @0			// X
 		ldi		rArgument0H, @1			// Y
 		ldi		rArgument1L, LOW(@2)	// LOW(LABEL)
 		ldi		rArgument1H, HIGH(@2)	// HIGH(LABEL)
 		call	addProgram
+	.ENDMACRO*/
+
+	/**
+	 * Add programs to the main menu
+	 * @param @0 - the label to the icon drawing subroutine
+	 * @param @1 - the label of the program subroutine
+	 */
+	.MACRO	addProgrami
+		ldi		rArgument0L, LOW(@0)
+		ldi		rArgument0H, HIGH(@0)
+		ldi		rArgument1L, LOW(@1)
+		ldi		rArgument1H, HIGH(@1)
+		call	addProgram
 	.ENDMACRO
-	
+
 	/**
 	 * Determines whether two positions intersect
 	 * @param @0 - The X coordinate of the first position
@@ -364,6 +376,22 @@
 		call	checkCollision
 	.ENDMACRO
 
+	/**
+	 * Terminates the program with a custom image in order to identify different types of errors. 
+	 * @param @0 - The label to the subroutine drawing the error image
+	 */	
+	.MACRO	terminateErrori
+		ldi		rArgument0L, LOW(@0)
+		ldi		rArgument0H, HIGH(@0)
+		call	terminateError
+	.ENDMACRO
+
+	/**
+	 * Quick macro to terminate with a fatal error. This displays a skull on the screen.
+	 */
+	.MACRO	crash
+		terminateErrori	drawSkullMatrix
+	.ENDMACRO
 
 
 	/**							
@@ -1397,7 +1425,6 @@ initializeFlashFood:
  * Program: Tetris Game
  * The classic game tetris
  *****************************************************************************************/
-mazeGame:
 tetrisGame:
 	call	clearMatrix
 
@@ -1557,9 +1584,9 @@ initializeTetris:
 	store	2, 1
 	// Rotation 3
 	store	1, 2
+	store	2, 0
 	store	2, 1
 	store	2, 2
-	store	2, 3
 
 	// Reverse L Block
 	// Rotation 0
@@ -1801,8 +1828,8 @@ tetrisJoyStickUpdate:
 	ldd		rSpeedEnabled, Y + oTetrisSpeedEnabled
 	
 	// If speed was enabled
-	cpi		rSpeedEnabled, 1
-	brne	tetrisSkipResetSpeed
+	cpi		rSpeedEnabled, 0
+	breq	tetrisSkipResetSpeed
 
 	// Disable speed and store it
 	ldi		rSpeedEnabled, 0
@@ -1842,8 +1869,8 @@ tetrisSpeed:
 	ldd		rSpeedEnabled, Y + oTetrisSpeedEnabled
 
 	// If speed was not enabled
-	cpi		rSpeedEnabled, 0
-	brne	tetrisSkipEnableSpeed
+	cpi		rSpeedEnabled, 1
+	breq	tetrisSkipEnableSpeed
 
 	// Enable speed and store it
 	ldi		rSpeedEnabled, 1
@@ -1979,7 +2006,7 @@ tetrisGenerateNextBlock:
 
 
 /**
- * checkCanMove
+ * tetrisCheckCollision
  * @return rReturnL - true/false
  */
 tetrisCheckCollision:
@@ -2002,7 +2029,7 @@ tetrisCheckCollision:
 	// none is error
 	cpi		rBlockType, TETRIS_NONE_BLOCK	
 	brne	tetrisCheckValidBlock
-	call	terminate
+	terminateErrori drawTemplarMatrix
 
 tetrisCheckValidBlock:
 	// Load block x/y array
@@ -2106,7 +2133,7 @@ tetrisCheckReturn:
 
 
 /**
- * drawTetrisBlock
+ * DrawTetrisBlock
  */
 drawTetrisBlock:
 		.DEF	rZero			= r18
@@ -2128,7 +2155,7 @@ drawTetrisBlock:
 	// none is error
 	cpi		rBlockType, TETRIS_NONE_BLOCK	
 	brne	tetrisDrawValidBlock
-	call	terminate
+	terminateErrori drawTemplarMatrix
 
 tetrisDrawValidBlock:
 	// Load block x/y array
@@ -2228,7 +2255,7 @@ clearTetrisBlock:
 	// none is error
 	cpi		rBlockType, TETRIS_NONE_BLOCK	
 	brne	tetrisClearValidBlock
-	call	terminate
+	terminateErrori drawTemplarMatrix
 
 tetrisClearValidBlock:
 	// Load block x/y array
@@ -2302,92 +2329,6 @@ tetrisClearLoop:
 
 
 
-/**
- * isPixelSet
- * @param rArgument0L - X
- * @param rArgument0H - Y
- * @return rReturnL - is set
- */
-isPixelSet:
-		.DEF	rRow		= r18
-		.DEF	rColumn		= r19
-		.DEF	rRowMask	= r20
-		.DEF	rZero		= r21
-
-	// Load the matrix adress into 16 bit register Y (LOW + HIGH)
-	mov		rColumn,	rArgument0L
-	mov		rRow,		rArgument0H
-
-	// Assert coordinates X & Y < 8
-	cpi		rRow, 8
-	brlo	isValidPixelSet
-	cpi		rColumn, 8
-	brlo	isValidPixelSet
-	call	terminate
-isValidPixelSet:
-
-	// convert value to mask
-	ldi		rRowMask, 0b10000000
-isPixelSetColumnShiftLoop:
-	cpi		rColumn, 0
-	breq	isPixelSetColumnShiftEnd
-	subi	rColumn, 1
-	lsr		rRowMask
-	jmp		isPixelSetColumnShiftLoop
-isPixelSetColumnShiftEnd:
-
-	ldi		YH, HIGH(matrix)
-	ldi		YL, LOW(matrix)
-	ldi		rZero, 0
-	add		YL,	rRow
-	adc		YH, rZero
-	ld		rRow, Y
-
-	// sort out specified bit
-	and		rRow, rRowMask
-
-	// Default is pixel not set
-	ldi		rReturnL, 0
-
-	// Check if pixel is set
-	cpi		rRow, 0
-	breq	isPixelNotSet
-	ldi		rReturnL, 1
-
-isPixelNotSet:
-
-		.UNDEF	rRow
-		.UNDEF	rColumn
-		.UNDEF	rRowMask
-		.UNDEF	rZero
-
-	ret
-/* isPixelSet end */
-
-
-
-/**
- * isPixelClear
- * @param rArgument0L - X
- * @param rArgument0H - Y
- * @return rReturnL - is clear
- */
-isPixelClear:
-	call	isPixelSet			// return !isPixelSet
-	cpi		rReturnL, 1
-	breq	isPixelNotClear
-
-	ldi		rReturnL, 1
-	jmp		isPixelNotClearReturn
-
-isPixelNotClear:
-	ldi		rReturnL, 0
-
-isPixelNotClearReturn:
-
-	ret
-/* isPixelClear end */
-
 /******************************************************************************************
  * End Tetris Game																	  
  *****************************************************************************************/
@@ -2409,10 +2350,10 @@ asteroids:
 
 
 
-/**
+/******************************************************************************************
  * Program: FillBoard
  * Fill the board and show it
- */
+ *****************************************************************************************/
 fillBoard:
 	call setMatrix
 
@@ -2424,12 +2365,16 @@ fillBoardLoop:
 	ret
 /* fillBoard end */
 
+/******************************************************************************************
+ * End Fill Board																	  
+ *****************************************************************************************/
 
 
-/**
+
+/******************************************************************************************
  * Program: Render Joystick
  * renders the positon of the joystick
- */
+ *****************************************************************************************/
 renderJoystick:
 
 renderJoystickLoop:
@@ -2515,6 +2460,111 @@ renderJoystickLoop:
 	ret
 /* renderJoystick end */
 
+/******************************************************************************************
+ * End Render Joystick															  
+ *****************************************************************************************/
+
+
+
+ /******************************************************************************************
+ * Program: Error Test
+ * Renders error images
+ *****************************************************************************************/
+errorTest:
+	call	clearMatrix
+
+	// Timer initializiton
+	ldi		rArgument0L, TIMER2_PRE_1024
+	call	initializeHardwareTimer2
+
+	initializeTimeri updateTimer, ERROR_DISPLAY_TIME
+
+		.DEF	rIndex		= r16
+		.DEF	rImageCount	= r17
+
+	ldi		rImageCount, 6
+	ldi		rIndex, 0
+	call	drawCrossMatrix
+errorLoop:
+	// If timer update, swap image
+	checkTimeri updateTimer
+	cpi		rReturnL, 1
+	brne	errorLoopEnd
+	
+	// Increment the index and wrap if past the last index
+	inc		rIndex
+	cp		rIndex, rImageCount
+	brne	skipWrapIndex
+	ldi		rIndex, 0
+skipWrapIndex:
+	
+	// Draw the correct image
+	call	clearMatrix
+
+	cpi		rIndex, 0
+	breq	drawErrorImage0
+	cpi		rIndex, 1
+	breq	drawErrorImage1
+	cpi		rIndex, 2
+	breq	drawErrorImage2
+	cpi		rIndex, 3
+	breq	drawErrorImage3
+	cpi		rIndex, 4
+	breq	drawErrorImage4
+	cpi		rIndex, 5
+	breq	drawErrorImage5
+
+drawErrorImage0:
+	call	drawCrossMatrix
+	jmp		errorLoopEnd
+drawErrorImage1:
+	call	drawSkullMatrix
+	jmp		errorLoopEnd
+drawErrorImage2:
+	call	drawTemplarMatrix
+	jmp		errorLoopEnd
+drawErrorImage3:
+	call	drawSmileyMatrix
+	jmp		errorLoopEnd
+drawErrorImage4:
+	call	drawOutOfBoundsWriteMatrix
+	jmp		errorLoopEnd
+drawErrorImage5:
+	call	drawOutOfBoundsReadMatrix
+	jmp		errorLoopEnd
+
+
+errorLoopEnd:
+
+	call	render
+	jmp		errorLoop
+	
+		.UNDEF	rIndex
+		.UNDEF	rImageCount
+
+	ret
+/* errorTest end */
+
+/******************************************************************************************
+ * End Error Test													  
+ *****************************************************************************************/
+
+
+
+/******************************************************************************************
+ * Program: Exit
+ * exit it all
+ *****************************************************************************************/
+exit:
+
+	ret
+/* exit end */
+
+/******************************************************************************************
+ * End Exit												  
+ *****************************************************************************************/
+
+
 
 /**
  * Determines whether two positions intersect
@@ -2544,6 +2594,130 @@ skipCollidedWithFood:
 		.UNDEF	rHasCollided
 	ret
 /* checkCollision end */
+
+
+
+/**
+ * Draws the icon for the program 'Error Test', alternating between two different frames.
+ * @param rArgument0L - Which of the two frames that is draw
+ */
+drawErrorTestIcon:
+		/* Register used for the pixels in a row */
+		.DEF	rRowBits	= r18
+
+	// Get a pointer to the matrix
+	ldi		YH, HIGH(matrix)
+	ldi		YL, LOW(matrix)
+
+	// Go to the correct version of the icon and draw it
+	cpi		rArgument0L, 0
+	brne	errorIconAlt
+
+	// Draw the first version of the icon
+	ldi		rRowBits, 0b11111111
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b10000001
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b10111101
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b10100001
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b10111001
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b10100001
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b10111101
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b11111111
+	st		Y+, rRowBits
+
+	ret									// Return
+
+errorIconAlt:
+	// Draw the second version of the icon
+	ldi		rRowBits, 0b11111111
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b10000001
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b10111001
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b10100101
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b10111001
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b10100101
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b10100101
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b11111111
+	st		Y+, rRowBits
+
+	ret									// Return
+
+		.UNDEF	rRowBits
+/* drawErrorTestIcon end */	
+
+
+
+/**
+ * Draws the icon for the program 'Exit', alternating between two different frames.
+ * @param rArgument0L - Which of the two frames that is draw
+ */
+drawExitIcon:
+		/* Register used for the pixels in a row */
+		.DEF	rRowBits	= r18
+
+	// Get a pointer to the matrix
+	ldi		YH, HIGH(matrix)
+	ldi		YL, LOW(matrix)
+
+	// Go to the correct version of the icon and draw it
+	cpi		rArgument0L, 0
+	brne	exitIconAlt
+
+	// Draw the first version of the icon
+	ldi		rRowBits, 0b00011000
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b01011010
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b11011011
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b10011001
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b10011001
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b11000011
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b01100110
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b00111100
+	st		Y+, rRowBits
+
+	ret									// Return
+
+exitIconAlt:
+	// Draw the second version of the icon
+	ldi		rRowBits, 0b00011000
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b01011010
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b11011011
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b10011001
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b10011001
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b11000011
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b01100110
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b00111100
+	st		Y+, rRowBits
+
+	ret									// Return
+
+		.UNDEF	rRowBits
+/* drawExitIcon end */	
 
 
 
@@ -2653,11 +2827,11 @@ tetrisIconAlt:
 	st		Y+, rRowBits
 	ldi		rRowBits, 0b10000001
 	st		Y+, rRowBits
-	ldi		rRowBits, 0b10111001
+	ldi		rRowBits, 0b10000001
 	st		Y+, rRowBits
-	ldi		rRowBits, 0b11010001
+	ldi		rRowBits, 0b11111001
 	st		Y+, rRowBits
-	ldi		rRowBits, 0b11000101
+	ldi		rRowBits, 0b11010101
 	st		Y+, rRowBits
 	ldi		rRowBits, 0b11101111
 	st		Y+, rRowBits
@@ -2921,6 +3095,55 @@ joystickIconAlt:
 
 
 
+/**
+ * Draws the icon for the program 'Fill Board', alternating between two different frames.
+ * @param rArgument0L - Which of the two frames that is draw
+ */
+drawFillBoardIcon:
+		/* Register used for the pixels in a row */
+		.DEF	rRowBits	= r18
+
+	// Get a pointer to the matrix
+	ldi		YH, HIGH(matrix)
+	ldi		YL, LOW(matrix)
+
+	// Go to the correct version of the icon and draw it
+	cpi		rArgument0L, 0
+	brne	fillBoardIconAlt
+
+	// Draw the first version of the icon
+	ldi		rRowBits, 0b11111111
+	st		Y+, rRowBits
+	st		Y+, rRowBits
+	st		Y+, rRowBits
+	st		Y+, rRowBits
+	st		Y+, rRowBits
+	st		Y+, rRowBits
+	st		Y+, rRowBits
+	st		Y+, rRowBits
+
+	ret									// Return
+
+fillBoardIconAlt:
+	// Draw the second version of the icon
+	ldi		rRowBits, 0b11111111
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b10000001
+	st		Y+, rRowBits
+	st		Y+, rRowBits
+	st		Y+, rRowBits
+	st		Y+, rRowBits
+	st		Y+, rRowBits
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b11111111
+	st		Y+, rRowBits
+
+	ret									// Return
+
+		.UNDEF	rRowBits
+/* drawFillBoardIcon end */	
+
+
 
 /**
  * Set the bits in the matrix with a smiley
@@ -3026,6 +3249,74 @@ drawTemplarMatrix:
 
 
 /**
+ * Draw the out of bounds write error image
+ */
+drawOutOfBoundsWriteMatrix:
+		/* Register used for the pixels in a row */
+		.DEF	rRowBits	= r18
+
+	// Initialize the matrix with a skull
+	ldi		YH, HIGH(matrix)	// Set Y to matrix address
+	ldi		YL, LOW(matrix)
+	ldi		rRowBits, 0b10100000 
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b01000000
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b10100000
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b00011111
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b00010000
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b00010010 
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b00010110
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b00010010
+	st		Y+, rRowBits
+
+		.UNDEF	rRowBits
+
+	ret
+/* drawOutOfBoundsWriteMatrix end */	
+
+
+
+/**
+ * Draw the out of bounds read error image
+ */
+drawOutOfBoundsReadMatrix:
+		/* Register used for the pixels in a row */
+		.DEF	rRowBits	= r18
+
+	// Initialize the matrix with a skull
+	ldi		YH, HIGH(matrix)	// Set Y to matrix address
+	ldi		YL, LOW(matrix)
+	ldi		rRowBits, 0b11100000 
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b10100000
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b11100000
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b00011111
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b00010000
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b00010010 
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b00010110
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b00010010
+	st		Y+, rRowBits
+
+		.UNDEF	rRowBits
+
+	ret
+/* drawOutOfBoundsReadMatrix end */	
+
+
+
+/**
  * Set the bits in the matrix with a skull
  */
 drawSkullMatrix:
@@ -3059,6 +3350,39 @@ drawSkullMatrix:
 
 
 
+/**
+ * Set the bits in the matrix with a cross
+ */
+drawCrossMatrix:
+		/* Register used for the pixels in a row */
+		.DEF	rRowBits	= r18
+
+	// Initialize the matrix with a cross
+	ldi		YH, HIGH(matrix)	// Set Y to matrix address
+	ldi		YL, LOW(matrix)
+	ldi		rRowBits, 0b11000011 
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b11100111
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b01111110
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b00111100
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b00111100
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b01111110 
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b11100111
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b11000011
+	st		Y+, rRowBits
+
+		.UNDEF	rRowBits
+
+	ret
+/* drawCrossMatrix end */	
+
+
 
 /**
  * Draws a pixel in the matrix at the sepcified location
@@ -3079,9 +3403,9 @@ setPixel:
 	brlo	setValidPixel
 	cpi		rColumn, 8
 	brlo	setValidPixel
-	call	terminate
-
+	terminateErrori drawOutOfBoundsWriteMatrix
 setValidPixel:
+
 	// convert value to mask
 	ldi		rRowMask, 0b10000000
 
@@ -3129,6 +3453,14 @@ clearPixel:
 	mov		rColumn,	rArgument0L
 	mov		rRow,		rArgument1L
 
+	// Assert coordinates X & Y < 8 (unsigned)
+	cpi		rRow, 8
+	brlo	clearValidPixel
+	cpi		rColumn, 8
+	brlo	clearValidPixel
+	terminateErrori drawOutOfBoundsWriteMatrix
+clearValidPixel:
+
 	// convert value to mask
 	ldi		rRowMask, 0b10000000
 clearPixelcolumnShiftLoop:
@@ -3158,6 +3490,89 @@ clearPixelcolumnShiftEnd:
 
 	ret
 /* clearPixel end */
+
+
+
+/**
+ * isPixelSet
+ * @param rArgument0L - X
+ * @param rArgument0H - Y
+ * @return rReturnL - is set
+ */
+isPixelSet:
+		.DEF	rRow		= r18
+		.DEF	rColumn		= r19
+		.DEF	rRowMask	= r20
+		.DEF	rZero		= r21
+
+	// Load the matrix adress into 16 bit register Y (LOW + HIGH)
+	mov		rColumn,	rArgument0L
+	mov		rRow,		rArgument0H
+
+	// Assert coordinates X & Y < 8
+	cpi		rRow, 8
+	brlo	isValidPixelSet
+	cpi		rColumn, 8
+	brlo	isValidPixelSet
+	terminateErrori drawOutOfBoundsReadMatrix
+isValidPixelSet:
+
+	// convert value to mask
+	ldi		rRowMask, 0b10000000
+isPixelSetColumnShiftLoop:
+	cpi		rColumn, 0
+	breq	isPixelSetColumnShiftEnd
+	subi	rColumn, 1
+	lsr		rRowMask
+	jmp		isPixelSetColumnShiftLoop
+isPixelSetColumnShiftEnd:
+
+	ldi		YH, HIGH(matrix)
+	ldi		YL, LOW(matrix)
+	ldi		rZero, 0
+	add		YL,	rRow
+	adc		YH, rZero
+	ld		rRow, Y
+
+	// sort out specified bit
+	and		rRow, rRowMask
+
+	// Default is pixel not set
+	ldi		rReturnL, 0
+
+	// Check if pixel is set
+	cpi		rRow, 0
+	breq	isPixelNotSet
+	ldi		rReturnL, 1
+
+isPixelNotSet:
+
+		.UNDEF	rRow
+		.UNDEF	rColumn
+		.UNDEF	rRowMask
+		.UNDEF	rZero
+
+	ret
+/* isPixelSet end */
+
+
+
+/**
+ * isPixelClear
+ * @param rArgument0L - X
+ * @param rArgument0H - Y
+ * @return rReturnL - is clear
+ */
+isPixelClear:
+	call	isPixelSet			
+
+	com		rReturnL
+	andi	rReturnL, 0x01		// return !isPixelSet
+
+isPixelNotClearReturn:
+
+	ret
+/* isPixelClear end */
 
 
 
@@ -3815,8 +4230,8 @@ checkTimerSkipReset:
 
 /**
  * Add programs to the main menu
- * @param rArgument0L - the X position of the program pixel
- * @param rArgument0H - the Y position of the program pixel
+ * @param rArgument0L - the lower byte of the icon label address
+ * @param rArgument0H - the upper byte of the icon label address
  * @param rArgument1L - the lower byte of the program label address
  * @param rArgument1H - the upper byte of the program label address
  */
@@ -3830,10 +4245,11 @@ addProgram:
 	ldi		YH, HIGH(programCount)
 	ld		rProgramCount, Y
 	
-	// If the maximum amount of programs has already been reached, call terminate
+	// If the maximum amount of programs has already been reached, crash
 	cpi		rProgramCount, MAX_PROGRAMS
 	brlo	initializeProgram	
-	call	terminate
+	crash
+
 initializeProgram:
 
 	// Load a pointer to the first program
@@ -3850,8 +4266,8 @@ initializeProgram:
 	adc		YH, rTempi		// Add the carry if we get an overflow in the lower byte
 	
 	// Store the arguments
-	std		Y + oProgramX, rArgument0L
-	std		Y + oProgramY, rArgument0H
+	std		Y + oProgramIconL, rArgument0L
+	std		Y + oProgramIconH, rArgument0H
 	std		Y + oProgramAdressL, rArgument1L
 	std		Y + oProgramAdressH, rArgument1H
 
@@ -3867,7 +4283,6 @@ initializeProgram:
 		
 	ret
 /* addProgram end */
-
 
 
 /**
@@ -3913,39 +4328,42 @@ programSelectLoop:
 skipIconUpdate:
 	call	readJoystickDirection
 	
-	// Update the direction if the joystick isn't neutral
-	cpi		rReturnL, 0
-	brne	program_UpdateDirection
-	cpi		rReturnH, 0
-	brne	program_UpdateDirection
-	jmp		program_SkipDirectionUpdate
-
-program_UpdateDirection:
 	mov		rJoystickDirectionX, rReturnL
 	mov		rJoystickDirectionY, rReturnH
-
-program_SkipDirectionUpdate:
 
 	// If the update timer has reset, cycle the program selection
 	checkTimeri		updateTimer
 	cpi		rReturnL, 1
-	brne	keepProgramSelection
+	brne	skipProgramUpdate
 
-	// Cycle programs (if the joystick is neutral, this does nothing)
+	// If the joystick isn't neutral in X, swap selection
+	cp		rJoystickDirectionX, rZero
+	breq	skipProgramUpdate
+
+	// Reset frame index
+	ldi		rFrameIndex, 0
+
+	// Move program index in the direction the joystick is pointing
 	add		rProgramIndex, rJoystickDirectionX
 	cp		rProgramIndex, rZero					// If the index goes lower than the first index, select the last
 	brlt	selectLastProgram
 	cp		rProgramindex, rProgramCount			// If the index goes beyond the last index, select the first
 	brge	selectFirstProgram
-	jmp		keepProgramSelection					// If the selection moved to a valid index, keep the new value
+	jmp		resetJoystickDirection							// If the selection moved to a valid index, keep the new value
 
 selectLastProgram:
 	mov		rProgramIndex, rProgramCount			// Wrap around to the first index
+	dec		rProgramIndex
 
+	jmp		resetJoystickDirection
 selectFirstProgram:
 	mov		rProgramIndex, rZero					// Wrap around to the last index
 
-keepProgramSelection:
+resetJoystickDirection:
+	mov		rJoystickDirectionX, rZero
+	mov		rJoystickDirectionY, rZero
+
+skipProgramUpdate:
 
 	// Load a pointer to the program array
 	ldi		YL, LOW(programs)
@@ -3963,14 +4381,16 @@ keepProgramSelection:
 
 	// Moving the joystick up or down runs the selected program
 	cp		rJoystickDirectionY, rZero				// If neutral, don't run
-	breq	skipProgram2
+	breq	skipProgramExecution
 
 	// Run the program
 	ldd		ZL, Y + oProgramAdressL
 	ldd		ZH, Y + oProgramAdressH
 	icall
 
-skipProgram2:
+	call	terminateExit
+
+skipProgramExecution:
 
 	// Draw the icon
 	mov		rArgument0L, rFrameIndex
@@ -4011,118 +4431,24 @@ main:
 		.UNDEF	rProgramCount
 
 	// Add programs
-	addProgrami 0, 0, snakeGame
-	addProgrami 5, 0, mazeGame
-	addProgrami 7, 0, asteroids
+	addProgrami drawSnakeIcon, snakeGame
+	addProgrami drawTetrisIcon, tetrisGame
+	addProgrami drawAsteroidsIcon, asteroids
 	
-	addProgrami 0, 7, timerTest
-	addProgrami 2, 7, renderJoystick
-	addProgrami 5, 7, fillBoard
-	addProgrami 7, 7, randomPixelDraw
+	addProgrami drawTimerIcon, timerTest
+	addProgrami drawRandomIcon, randomPixelDraw
+	addProgrami drawJoystickIcon, renderJoystick 
+	addProgrami drawErrorTestIcon, errorTest
+	addProgrami drawFillBoardIcon, fillBoard
 
-	// Set the timer going
-	// call		initializeHardwareTimer2		// TODO enable hardware timer in main subroutine
-	// call		programSelectMenu
+	addProgrami drawExitIcon, exit
 
-mainLoop:
-	call	clearMatrix
-		
-		/* Column and row registers */
-		.DEF	rColumn			= r8
-		.DEF	rRow			= r9
+	// Hardware timer initializiton
+	ldi		rArgument0L, TIMER2_PRE_1024
+	call	initializeHardwareTimer2
 
-		/* Temp registers */
-		.DEF	rTemp = r2
-		.DEF	rTempI = r16
-
-		/* Joystick input registers */
-		.DEF	rJoystickL	= r18
-		.DEF	rJoystickH	= r19
-
-	// Read X axis
-	ldi		rArgument0L, JOYSTICK_X_AXIS	// 1 represents X
-	call	readJoystick		
-
-	// Convert 10 bit value to 8 bit, discarding lowest 2 bits
-	call	joystickValueTo8Bit				// Skip loading arguments, since the previous call assigned them to the correct registers already
-	mov		rColumn, rReturnL
-
-	// right shift some more to make the value 3 bits (row 0-7)
-	lsr5	rColumn
-
-	// Reverse order rColumn (7-0 -> 0-7)
-	ldi		rTempI, 7
-	sub		rTempI, rColumn
-	mov		rColumn, rTempI
-
-	// Read Y axis
-	ldi		rArgument0L, JOYSTICK_Y_AXIS
-	call	readJoystick
-
-	// Convert 10 bit value to 8 bit, discarding lowest 2 bits
-	call	joystickValueTo8Bit				// Skip loading arguments, since the previous call assigned them to the correct registers already
-	mov		rRow, rReturnL
-
-		.UNDEF	rJoystickL
-		.UNDEF	rJoystickH
-
-	// Right shift joystick input until it's 3 bits (row 0-7)
-	lsr5	rRow
-
-	// Reverse row order (7-0 -> 0-7)
-	ldi		rTempI, 7
-	sub		rTempI, rRow
-	mov		rRow, rTempI
-
-	// Draw the "cursor"
-	setPixelr	rColumn, rRow
-
-		.UNDEF	rTemp
-		.UNDEF	rTempI
-
-		.DEF	rProgramIterator = r16
-		.DEF	rProgramX		 = r2
-		.DEF	rProgramY		 = r3
-	
-	ldi		YL, LOW(programCount)
-	ldi		YH, HIGH(programCount)
-	ld		rProgramIterator, Y
-
-	ldi		YL, LOW(programs)
-	ldi		YH, HIGH(programs)
-
-programLoop:
-	ldd		rProgramX, Y + oProgramX
-	ldd		rProgramY, Y + oProgramY
-
-	push	YL
-	push	YH
-	setPixelr		rProgramX, rProgramY
-	checkCollisionr	rColumn, rRow, rProgramX, rProgramY
-	pop		YH
-	pop		YL
-	cpi		rReturnL, 1
-	brne	skipProgram
-	ldd		ZL, Y + oProgramAdressL
-	ldd		ZH, Y + oProgramAdressH
-	icall
-	jmp		mainLoopEnd
-
-skipProgram:
-	adiw	Y, PROGRAM_DATA_SIZE
-	dec		rProgramIterator			
-	cpi		rProgramIterator, 0
-	brne	programLoop
-
-	call	render
-	jmp		mainLoop
-mainLoopEnd:
-
-		.UNDEF	rRow
-		.UNDEF	rColumn
-		.UNDEF	rProgramIterator
-		.UNDEF	rProgramX
-		.UNDEF	rProgramY
+	// Run the menu GUI
+	call	programSelectMenu
 
 	ret							// if program returned, exit main
 /* main end */
@@ -4186,23 +4512,40 @@ init:
 		.UNDEF	rTempValue
 
 	call	main				// call main (entry point)
-	call	terminate			// if returned from main, terminate
+	call	terminateExit		// if returned from main, terminate
 
 	ret							// WARNING! IT SHOULD NEVER REACH THIS
 /* init end */
 
 
+/**
+ * Terminates the program with a custom image in order to identify different types of errors
+ * @param argument0L - The lower address byte of the custom drawing subroutine
+ * @param argument0H - The upper address byte of the custom drawing subroutine
+ */
+terminateError:
+	cli								// no more interupts after termination
+	mov		ZL, rArgument0L
+	mov		ZH, rArgument0H
+	icall
+
+terminateErrorLoop:
+	call	render
+	jmp		terminateErrorLoop
+
+	// no ret since the program was terminated
+/* terminateError end */
 
 /**
  * Terminate the program
  */
-terminate:
+terminateExit:
 	cli								// no more interupts after termination
-	call	drawSkullMatrix
+	call	drawCrossMatrix
 
-terminateLoop:
+terminateExitLoop:
 	call	render
-	jmp		terminateLoop
+	jmp		terminateExitLoop
 
 	// no ret since the program was terminated
-/* terminate end */
+/* terminateExit end */
