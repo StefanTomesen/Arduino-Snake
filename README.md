@@ -1,6 +1,6 @@
 Arduino Snake
 =============
- (8x8 pixel arcade machine!)
+(An 8x8 pixel arcade machine!)
 
 This project is based on an machine programming assingment to make a snake game on a LED display at Högskolan i Skövde.
 
