@@ -69,41 +69,41 @@
 
 	/* Timer */
 	// Constants
-	.EQU	TIMER_DATA_SIZE			= 4
+	.EQU	TIMER_DATA_SIZE				= 4
 	// Data structure
-	.EQU	oTimerCurrentTimeL		= 0x00
-	.EQU	oTimerCurrentTimeH		= 0x01
-	.EQU	oTimerTargetTimeL		= 0x02
-	.EQU	oTimerTargetTimeH		= 0x03
+	.EQU	oTimerCurrentTimeL			= 0x00
+	.EQU	oTimerCurrentTimeH			= 0x01
+	.EQU	oTimerTargetTimeL			= 0x02
+	.EQU	oTimerTargetTimeH			= 0x03
 
 	/* Snake */
 	// Constants
-	.EQU	SNAKE_MAX_LENGTH		= 64
-	.EQU	SNAKE_DATA_SIZE			= 5
+	.EQU	SNAKE_MAX_LENGTH			= 64
+	.EQU	SNAKE_DATA_SIZE				= 5
 	// Data structure
-	.EQU	oSnakeDirectionX		= 0x00
-	.EQU	oSnakeDirectionY		= 0x01
-	.EQU	oSnakeNextDirectionX	= 0x02
-	.EQU	oSnakeNextDirectionY	= 0x03
-	.EQU	oSnakeLength			= 0x04
+	.EQU	oSnakeDirectionX			= 0x00
+	.EQU	oSnakeDirectionY			= 0x01
+	.EQU	oSnakeNextDirectionX		= 0x02
+	.EQU	oSnakeNextDirectionY		= 0x03
+	.EQU	oSnakeLength				= 0x04
 
 	/* FlashFood */
 	// Constants
-	.EQU	FLASH_FOOD_DATA_SIZE	= 3
+	.EQU	FLASH_FOOD_DATA_SIZE		= 3
 	// Data structure
-	.EQU	oFlashFoodPositionX		= 0x00
-	.EQU	oFlashFoodPositionY		= 0x01
-	.EQU	oIsLitUp				= 0x02
+	.EQU	oFlashFoodPositionX			= 0x00
+	.EQU	oFlashFoodPositionY			= 0x01
+	.EQU	oIsLitUp					= 0x02
 	
 	/* Program */
 	// Constants
-	.EQU	MAX_PROGRAMS			= 9
-	.EQU	PROGRAM_DATA_SIZE		= 4
+	.EQU	MAX_PROGRAMS				= 9
+	.EQU	PROGRAM_DATA_SIZE			= 4
 	// Data structure
-	.EQU	oProgramIconL			= 0x00
-	.EQU	oProgramIconH			= 0x01
-	.EQU	oProgramAdressL			= 0x02
-	.EQU	oProgramAdressH			= 0x03
+	.EQU	oProgramIconL				= 0x00
+	.EQU	oProgramIconH				= 0x01
+	.EQU	oProgramAdressL				= 0x02
+	.EQU	oProgramAdressH				= 0x03
 
 	/* Tetris */
 	// Constants
@@ -129,8 +129,8 @@
 	 */
 
 	/* Program select menu */
-	.EQU	PROGRAM_SWAP_TIME		= 32
-	.EQU	PROGRAM_FRAME_TIME		= 64
+	.EQU	PROGRAM_SWAP_TIME			= 32
+	.EQU	PROGRAM_FRAME_TIME			= 64
 
 	/* Snake Game */
 	.EQU	SNAKE_UPDATE_TIME			= 16
@@ -154,8 +154,11 @@
 
 	/* Tetris Game */
 	.EQU	TETRIS_UPDATE_TIME			= 64
+	.EQU	TETRIS_START_UPDATE_TIME	= TETRIS_UPDATE_TIME
+	.EQU	TETRIS_END_UPDATE_TIME		= TETRIS_UPDATE_TIME
 	.EQU	TETRIS_SPEED_UPDATE_TIME	= TETRIS_UPDATE_TIME / 4
 	.EQU	TETRIS_JOYSTICK_UPDATE_TIME	= 16
+
 
 
 	/** 
@@ -522,8 +525,8 @@ timer2OverflowInterupt:
 timerTest:
 
 	// Hardware timer initializiton
-	ldi rArgument0L, TIMER2_PRE_1024
-	call initializeHardwareTimer2
+	ldi		rArgument0L, TIMER2_PRE_1024
+	call	initializeHardwareTimer2
 
 	initializeTimeri renderTimer,		TIMER_TEST_TIMER0_TIME
 	initializeTimeri updateTimer,		TIMER_TEST_TIMER1_TIME
@@ -789,8 +792,8 @@ snake_GameLoopEnd:
 
 snake_Update:
 
-		.DEF rSnakeDirectionX	= r18
-		.DEF rSnakeDirectionY	= r19
+		.DEF	rSnakeDirectionX	= r18
+		.DEF	rSnakeDirectionY	= r19
 
 	// Load the previous snake direction
 	ldi		YH, HIGH(snake)	// Set Y to matrix address
@@ -868,7 +871,7 @@ snakeStartAnimation:
 		/** The counter that keeps track of how many blinks we have left */
 		.DEF	rRemainingBlinks = r16
 		.DEF	rTemp			 = r18
-	push rRemainingBlinks
+	push	rRemainingBlinks
 
 	initializeTimeri boardFlashTimer, SNAKE_BOARD_FLASH_TIME
 
@@ -876,7 +879,7 @@ snakeStartAnimation:
 	ldi		rRemainingBlinks, SNAKE_BOARD_BLINKS
 
 snakeStartRender:
-	call render
+	call	render
 
 	// Wait for an update and then blink
 	checkTimeri boardFlashTimer		// returns boolean whether the timer has reached it's target time and reset	
@@ -902,7 +905,7 @@ snakeStartBlinkEnd:
 	cpi		rRemainingBlinks, 0
 	brne	snakeStartRender
 
-	pop rRemainingBlinks
+	pop		rRemainingBlinks
 		.UNDEF	rRemainingBlinks 
 		.UNDEF	rTemp
 
@@ -918,7 +921,7 @@ snakeGameEndAnimation:
 	initializeTimeri updateTimer, SNAKE_DIE_UPDATE_TIME
 
 snakeEndRender:
-	call render
+	call	render
 
 	// Wait for an update and then shorten the snake length
 	checkTimeri updateTimer			// Returns boolean whether the timer has reached it's target time and reset	
@@ -1281,8 +1284,8 @@ insertHead:
  * Draw a pixel at the head position of the snake
  */
  drawSnakeHead:
-		.DEF rSnakeHeadX		= r18
-		.DEF rSnakeHeadY		= r19
+		.DEF	rSnakeHeadX		= r18
+		.DEF	rSnakeHeadY		= r19
 
 	// Load the snake head position
 	ldi		ZH, HIGH(snakeArrayX)		// Set Z to snakeX address
@@ -1306,10 +1309,10 @@ insertHead:
  * Clear a pixel at the current tail position of the snake
  */
 clearSnakeTail:
-		.DEF rSnakeTailX		= r18
-		.DEF rSnakeTailY		= r19
-		.DEF rTailOffset		= r20
-		.DEF rZero				= r21
+		.DEF	rSnakeTailX		= r18
+		.DEF	rSnakeTailY		= r19
+		.DEF	rTailOffset		= r20
+		.DEF	rZero				= r21
 
 	// Load the tail offset
 	ldi		YH, HIGH(snake)					// Set pointer to snake struct	
@@ -1432,10 +1435,10 @@ tetrisGame:
 	ldi		rArgument0L, TIMER2_PRE_1024
 	call	initializeHardwareTimer2
 
+	call	tetrisStartAnimation
+
 	initializeTimeri updateTimer, TETRIS_UPDATE_TIME
 	initializeTimeri renderTimer, TETRIS_JOYSTICK_UPDATE_TIME
-
-	call	tetrisStartAnimation
 
 	call	initializeTetris
 
@@ -1667,7 +1670,37 @@ initializeTetris:
  * tetrisStartAnimation
  */
 tetrisStartAnimation:
+		.DEF rInterator = r18
 
+	initializeTimeri updateTimer, TETRIS_START_UPDATE_TIME
+
+	// there are 7 differend Blocks
+	ldi		rInterator, 7
+
+tetrisStartLoop:
+	push	rInterator
+	call	clearMatrix
+	call	drawTetrisBlock
+	pop		rInterator
+
+	// if shown all blocks, end
+	dec		rInterator
+	cpi		rInterator, 0
+	breq	tetrisStartReturn
+
+tetrisStartRender:
+	// if time, show next block
+	checkTimeri updateTimer
+	cpi		rReturnL, 1
+	breq	tetrisStartLoop
+
+	call	render
+	jmp		tetrisStartRender
+
+tetrisStartReturn:
+
+		.UNDEF	rInterator
+				
 	ret
 /* tetrisStartAnimation end */
 
@@ -1677,6 +1710,52 @@ tetrisStartAnimation:
  * tetrisEndAnimation
  */
 tetrisEndAnimation:
+		.DEF	rRow		= r16
+
+	push	rRow
+
+	initializeTimeri updateTimer, TETRIS_END_UPDATE_TIME
+
+	// Load pointer to "one past end" row
+	ldi		YL, LOW(matrix)
+	ldi		YH, HIGH(matrix)
+	adiw	Y, 8
+		
+	push	YL
+	push	YH
+
+tetrisEndLoop:
+	// back up one row and fill it
+	pop		YH
+	pop		YL	
+	ld		rRow, -Y
+	ldi		rRow, 0xFF
+	st		Y, rRow
+	push	YL
+	push	YH
+
+	// if filled all rows, end
+	dec		rRow
+	cpi		rRow, -1
+	breq	tetrisEndReturn
+
+tetrisEndRender:
+
+	// if time, fill next row
+	checkTimeri updateTimer
+	cpi		rReturnL, 1
+	breq	tetrisEndLoop
+	
+	call	render
+	jmp		tetrisEndRender
+
+tetrisEndReturn:
+
+	pop		YH
+	pop		YL
+
+	pop		rRow
+		.UNDEF	rRow	
 
 	ret
 /* tetrisEndAnimation end */
@@ -2355,7 +2434,7 @@ asteroids:
  * Fill the board and show it
  *****************************************************************************************/
 fillBoard:
-	call setMatrix
+	call	setMatrix
 
 fillBoardLoop:
 	// Simply show the filled board 'til the end of time
@@ -2378,7 +2457,7 @@ fillBoardLoop:
 renderJoystick:
 
 renderJoystickLoop:
-	call clearMatrix
+	call	clearMatrix
 		
 		/* Temp registers */
 		.DEF	rTemp = r2
@@ -3765,9 +3844,9 @@ delayLoop:
 		.DEF	rPortD		= r23
 
 	// clear all input
-	clr rPortB
-	clr rPortC
-	clr rPortD
+	clr		rPortB
+	clr		rPortC
+	clr		rPortD
 
 	// clear row
 	out		PORTB, rPortB
