@@ -4,7 +4,7 @@ Arduino Snake
 
 This project is based on an machine programming assingment to make a snake game on a LED display at Högskolan i Skövde.
 
-The project consists of several programs, 3 games as well as a couple of testing programs. To select program, the user cycles through a menu of animated icons representing the different programs by moving the joystick left and right and selects a program by moving the joystick up or down.
+The project consists of a GUI and several programs: 3 games as well as a couple of testing programs.  To select program, the user cycles through a menu of animated icons representing the different programs by moving the joystick left and right and selects a program by moving the joystick up or down.
 
 The programs that currently exist are:
 * Snake
