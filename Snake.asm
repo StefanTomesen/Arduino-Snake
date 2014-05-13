@@ -6,11 +6,6 @@
  *
  *	Thism2 assemble setting
  *	avrdude -C "E:\Other\WinAVR-20100110\bin\avrdude.conf" -p atmega328p -P com3 -c arduino -b 115200 -U flash:w:Snake.hex 
- *
- * "TO FIX" NOTES:
- *  - New Menu system
- *  - Better error exits (i.e. more than one terminate image) 
- *		- ex.	callError codeOutOfBonds			// OUT OF BOUNDS CHECK
  */ 
 
 
@@ -76,6 +71,16 @@
 	.EQU	oTimerTargetTimeL			= 0x02
 	.EQU	oTimerTargetTimeH			= 0x03
 
+	/* Program */
+	// Constants
+	.EQU	MAX_PROGRAMS				= 9
+	.EQU	PROGRAM_DATA_SIZE			= 4
+	// Data structure
+	.EQU	oProgramIconL				= 0x00
+	.EQU	oProgramIconH				= 0x01
+	.EQU	oProgramAdressL				= 0x02
+	.EQU	oProgramAdressH				= 0x03
+
 	/* Snake */
 	// Constants
 	.EQU	SNAKE_MAX_LENGTH			= 64
@@ -94,16 +99,6 @@
 	.EQU	oFlashFoodPositionX			= 0x00
 	.EQU	oFlashFoodPositionY			= 0x01
 	.EQU	oIsLitUp					= 0x02
-	
-	/* Program */
-	// Constants
-	.EQU	MAX_PROGRAMS				= 9
-	.EQU	PROGRAM_DATA_SIZE			= 4
-	// Data structure
-	.EQU	oProgramIconL				= 0x00
-	.EQU	oProgramIconH				= 0x01
-	.EQU	oProgramAdressL				= 0x02
-	.EQU	oProgramAdressH				= 0x03
 
 	/* Tetris */
 	// Constants
@@ -123,6 +118,17 @@
 	.EQU	oTetrisBlockX				= 0x02
 	.EQU	oTetrisBlockY				= 0x03
 	.EQU	oTetrisSpeedEnabled			= 0x04
+
+	/* Asteroid */
+	// Constants
+	.EQU	MAX_ASTEROIDS				= 16
+	.EQU	SNAKE_DATA_SIZE				= 4					// SHOULD THIS REALLY BE HERE?
+	// Data structure
+	.EQU	oAsteroidPositionX			= 0x00
+	.EQU	oAsteroidPositionY			= 0x01
+	.EQU	oAsteroidDirectionX			= 0x02
+	.EQU	oAsteroidDirectionY			= 0x03
+
 
 	/**
 	 * Program constant definitions
@@ -159,6 +165,69 @@
 	.EQU	TETRIS_SPEED_UPDATE_TIME	= TETRIS_UPDATE_TIME / 4
 	.EQU	TETRIS_JOYSTICK_UPDATE_TIME	= 16
 
+	/**							
+	 * Data Segment
+	 */
+	.DSEG
+
+// Ledjoy matrix
+matrix:				.BYTE	NUM_ROWS					// LED matrix - 1 bit per "pixel" = one byte per row
+
+// Main menu
+programs:			.BYTE	MAX_PROGRAMS * PROGRAM_DATA_SIZE
+programCount:		.BYTE	1
+
+// Timer instances
+renderTimer:		.BYTE	TIMER_DATA_SIZE
+updateTimer:		.BYTE	TIMER_DATA_SIZE
+flashFoodTimer:		.BYTE	TIMER_DATA_SIZE
+boardFlashTimer:	.BYTE	TIMER_DATA_SIZE
+
+// Snake data
+snake:				.BYTE	SNAKE_DATA_SIZE
+snakeArrayX:		.BYTE	SNAKE_MAX_LENGTH
+snakeArrayY:		.BYTE	SNAKE_MAX_LENGTH
+flashFood:			.BYTE	FLASH_FOOD_DATA_SIZE
+
+// Tetris data			
+tetris:				.BYTE	TETRIS_DATA_SIZE	
+// Tetris block data
+tetrisBlockArrayX:	.BYTE	4 * 4 * TETRIS_BLOCKS
+tetrisBlockArrayY:	.BYTE	4 * 4 * TETRIS_BLOCKS
+tetrisBlockBitMap:	.BYTE	4 * 4 * TETRIS_BLOCKS
+
+// Asteroid data
+asteroidArray:		.BYTE	MAX_ASTEROIDS * ASTEROID_DATA_SIZE
+
+
+
+	/**							
+	 * Code segment
+	 */
+	.CSEG
+
+
+	/**
+	 * Interupt declarations
+	 */
+
+	// Initialization / reset interupt
+	.ORG	RESETaddr
+		jmp		init			// Reset vector
+		nop
+
+	// timer0 overflow interupt
+	.ORG	OVF0addr 
+		jmp		timer0OverflowInterupt		// Timer 0 overflow vector
+		nop
+
+	// timer2 overflow interupt
+	.ORG	OVF2addr 
+		jmp		timer2OverflowInterupt		// Timer 2 overflow vector
+		nop
+
+	// rest code
+	.ORG	INT_VECTORS_SIZE
 
 
 	/** 
@@ -397,61 +466,6 @@
 	.ENDMACRO
 
 
-	/**							
-	 * Data Segment
-	 */
-	.DSEG
-
-// Ledjoy matrix
-matrix:				.BYTE	NUM_ROWS					// LED matrix - 1 bit per "pixel" = one byte per row
-
-// Main menu
-programs:			.BYTE	MAX_PROGRAMS * PROGRAM_DATA_SIZE
-programCount:		.BYTE	1
-
-// Timer instances
-renderTimer:		.BYTE	TIMER_DATA_SIZE
-updateTimer:		.BYTE	TIMER_DATA_SIZE
-flashFoodTimer:		.BYTE	TIMER_DATA_SIZE
-boardFlashTimer:	.BYTE	TIMER_DATA_SIZE
-
-// Snake data
-snake:				.BYTE	SNAKE_DATA_SIZE
-snakeArrayX:		.BYTE	SNAKE_MAX_LENGTH
-snakeArrayY:		.BYTE	SNAKE_MAX_LENGTH
-flashFood:			.BYTE	FLASH_FOOD_DATA_SIZE
-
-// Tetris data			
-tetris:				.BYTE	TETRIS_DATA_SIZE	
-// Tetris block data
-tetrisBlockArrayX:	.BYTE	4 * 4 * TETRIS_BLOCKS
-tetrisBlockArrayY:	.BYTE	4 * 4 * TETRIS_BLOCKS
-tetrisBlockBitMap:	.BYTE	4 * 4 * TETRIS_BLOCKS
-
-
-
-	/**							
-	 * Code segment
-	 */
-	.CSEG
-
-	// Initialization / reset interupt
-	.ORG	RESETaddr
-		jmp		init			// Reset vector
-		nop
-
-	// timer0 overflow interupt
-	.ORG	OVF0addr 
-		jmp		timer0OverflowInterupt		// Timer 0 overflow vector
-		nop
-
-	// timer2 overflow interupt
-	.ORG	OVF2addr 
-		jmp		timer2OverflowInterupt		// Timer 2 overflow vector
-		nop
-
-	// rest code
-	.ORG	INT_VECTORS_SIZE
 
 /**
  * Handle overflow interupts from timer 0
@@ -2419,9 +2433,153 @@ tetrisClearLoop:
  * The classical game of asteroids														  *
  *****************************************************************************************/
 asteroids:
-
+	
 	ret
 /* asteroids end */
+
+
+
+/**
+ * Create a new randomly positioned asteroid
+ */
+spawnAsteroid:
+		.DEF	rPositionX		= r2
+		.DEF	rPositionY		= r3
+		.DEF	rAxis			= r6		// Remember to push / pop
+		.DEF	rTemp			= r20
+
+	// Save registers that are being used
+	push	rPositionX
+	push	rPositionY
+
+	// Generate 4 random bits for the direction (with the most random being the leftmost bit)
+	ldi		rArgument0L, JOYSTICK_X_AXIS
+	call	generateRandom4BitValue
+
+	// Get the axis bit (X = 0, Y = 1)
+	mov		rAxis, rReturnL
+	andi	rAxis, 0x0001						// ERROR: USING IMMIDATE ON LOW REGISTER
+
+		.DEF	rDirectionIndex = r19
+
+	// Get the direction index (upper 3 bits of the 4 generated)
+	mov		rDirectionIndex, rReturnL
+	lsr		rDirectionIndex
+
+	// Rotate axis aligned directions by 90 degrees (these are difficult to work with and aren't fun ingame)
+	ldi		rTemp, 0						// Use rTemp as a boolean
+
+	// If the first bit equals 1 (odd index), the direction points diagonally, i.e. not axis aligned
+	bst		rDirectionIndex, 0
+	bld		rTemp, 0
+	cp		rDirectionIndex, 1						// ERROR: DID YOU MEAN CPI?
+	breq	notAxisAligned
+
+	// If the index
+	bst		rDirectionIndex, 0
+	bld		rTemp, 0
+	cp		rDirectionIndex, 1						// ERROR: DID YOU MEAN CPI?
+	breq	notAxisAligned
+
+notAxisAligned:
+
+		.UNDEF	rDirectionIndex
+
+
+	// Restore registers that are used
+	pop		rPositionY
+	pop		rPositionX
+
+	ret
+		.UNDEF	rPositionX
+		.UNDEF	rPositionY
+		.UNDEF	rAxis
+		.UNDEF	rTemp
+ /* generateAsteroid end */
+
+
+
+/**
+ * Returns a direction vector based on a 3 bit value. Starting with 0 straight up, the directions move
+ * clockwise byt 45 degrees with each index.
+ * @param rArgumen0L - 3 bit value used as direction index
+ * @param rReturnL - Signed X direction (-1, 0, 1)
+ * @param rReturnH - Signed Y direction (-1, 0, 1)
+ */
+valueToDirection8:
+		.DEF	rDirectionIndex = r18
+		.DEF	rDirectionX		= r19
+		.DEF	rDirectionY		= r20
+
+	// Load the direction index value and mask out the lowest 3 bits
+	mov		rDirectionIndex, rArgument0L
+	andi	rDirectionIndex, 0b00000111
+	
+	// Jump to the correct index
+	cpi		rDirectionIndex, 0
+	breq	directionIndex0
+	cpi		rDirectionIndex, 1
+	breq	directionIndex1
+	cpi		rDirectionIndex, 2
+	breq	directionIndex2
+	cpi		rDirectionIndex, 3
+	breq	directionIndex3
+	cpi		rDirectionIndex, 4
+	breq	directionIndex4
+	cpi		rDirectionIndex, 5
+	breq	directionIndex5
+	cpi		rDirectionIndex, 6
+	breq	directionIndex6
+	cpi		rDirectionIndex, 7
+	breq	directionIndex7
+
+	// Set the direction
+	directionIndex0:
+	ldi		rDirectionX, 0
+	ldi		rDirectionY, -1
+	jmp		valueToDirection8End
+	directionIndex1:
+	ldi		rDirectionX, 1
+	ldi		rDirectionY, -1
+	jmp		valueToDirection8End
+	directionIndex2:
+	ldi		rDirectionX, 1
+	ldi		rDirectionY, 0
+	jmp		valueToDirection8End
+	directionIndex3:
+	ldi		rDirectionX, 1
+	ldi		rDirectionY, 1
+	jmp		valueToDirection8End
+	directionIndex4:
+	ldi		rDirectionX, 0
+	ldi		rDirectionY, 1
+	jmp		valueToDirection8End
+	directionIndex5:
+	ldi		rDirectionX, -1
+	ldi		rDirectionY, 1
+	jmp		valueToDirection8End
+	directionIndex6:
+	ldi		rDirectionX, -1
+	ldi		rDirectionY, 0
+	jmp		valueToDirection8End
+	directionIndex7:
+	ldi		rDirectionX, -1
+	ldi		rDirectionY, -1
+	jmp		valueToDirection8End
+
+valueToDirection8End:
+	
+	// Set the return values
+	mov		rReturnL, rDirectionX
+	mov		rReturnH, rDirectionY
+
+	ret
+		
+		.UNDEF	rDirectionX
+		.UNDEF	rDirectionY
+		.UNDEF	rDirectionIndex
+/* valueToDirection8 end */
+
 
 /******************************************************************************************
  * End Asteroids																	  
@@ -3952,7 +4110,7 @@ generateRandom4BitValue:
 /**
  * Load either the current X or Y value from joystick.
  * @param rArgument0L - The axis that is being read (constants JOYSTICK_X_AXIS and JOYSTICK_Y_AXIS)
- * @return rReturnL + rReturnH (16 bit) - value between 0 1023
+ * @return rReturnL + rReturnH (16 bit) - value between 0 1023 (10 bits used)
  */
 readJoystick:
 		.DEF	rMaskBits = r18
