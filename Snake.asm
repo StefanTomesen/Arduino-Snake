@@ -94,7 +94,16 @@
 	.EQU	oFlashFoodPositionX		= 0x00
 	.EQU	oFlashFoodPositionY		= 0x01
 	.EQU	oIsLitUp				= 0x02
-	
+
+	/* Asteroid */
+	// Constants
+	.EQU	SNAKE_DATA_SIZE			= 4
+	// Data structure
+	.EQU	oAsteroidPositionX		= 0x00
+	.EQU	oAsteroidPositionY		= 0x01
+	.EQU	oAsteroidDirectionX		= 0x02
+	.EQU	oAsteroidDirectionY		= 0x03
+
 	/* Program */
 	// Constants
 	.EQU	MAX_PROGRAMS			= 9
