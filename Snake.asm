@@ -6,6 +6,9 @@
  *
  *	Thism2 assemble setting
  *	avrdude -C "E:\Other\WinAVR-20100110\bin\avrdude.conf" -p atmega328p -P com3 -c arduino -b 115200 -U flash:w:Snake.hex 
+ *
+ *	Dayanto asseble setting
+ *  "C:\WinAVR-20100110\bin\avrdude.exe" -C "C:\WinAVR-20100110\bin\avrdude.conf" -patmega328p -Pcom4 -carduino -b115200 -Uflash:w:Snake.hex 
  */ 
 
 
@@ -121,13 +124,33 @@
 
 	/* Asteroid */
 	// Constants
-	.EQU	MAX_ASTEROIDS				= 16
-	.EQU	SNAKE_DATA_SIZE				= 4					// SHOULD THIS REALLY BE HERE?
+	.EQU	MAX_ASTEROIDS			= 16
+	.EQU	ASTEROID_DATA_SIZE		= 4
 	// Data structure
 	.EQU	oAsteroidPositionX			= 0x00
 	.EQU	oAsteroidPositionY			= 0x01
 	.EQU	oAsteroidDirectionX			= 0x02
 	.EQU	oAsteroidDirectionY			= 0x03
+
+	/* Bullet */
+	// Constants
+	.EQU	MAX_BULLETS				= 16
+	.EQU	BULLET_DATA_SIZE		= 5
+	// Data structure
+	.EQU	oBulletPositionX		= 0x00
+	.EQU	oBulletPositionY		= 0x01
+	.EQU	oBulletDirectionX		= 0x02
+	.EQU	oBulletDirectionY		= 0x03
+	.EQU	oBulletIsLit			= 0x04
+
+	/* Ship */
+	// Constants
+	.EQU	SHIP_DATA_SIZE		= 4
+	// Data structure
+	.EQU	oShipPositionX		= 0x00
+	.EQU	oShipPositionY		= 0x01
+	.EQU	oShipDirectionX		= 0x02
+	.EQU	oShipDirectionY		= 0x03
 
 
 	/**
@@ -165,6 +188,15 @@
 	.EQU	TETRIS_SPEED_UPDATE_TIME	= TETRIS_UPDATE_TIME / 4
 	.EQU	TETRIS_JOYSTICK_UPDATE_TIME	= 16
 
+	/* Asteroids Game */
+	.EQU	ASTEROIDS_SHIP_UPDATE_TIME		= 16
+	.EQU	ASTEROIDS_ASTEROID_UPDATE_TIME	= 32
+	.EQU	ASTEROIDS_BULLET_UPDATE_TIME	= 8
+	.EQU	ASTEROIDS_SPAWN_TIME			= 220
+	.EQU	ASTEROIDS_SHOOT_TIME			= 32
+	.EQU	ASTEROIDS_BULLET_FLASH_TIME		= ASTEROIDS_BULLET_UPDATE_TIME / 2
+
+
 	/**							
 	 * Data Segment
 	 */
@@ -180,8 +212,13 @@ programCount:		.BYTE	1
 // Timer instances
 renderTimer:		.BYTE	TIMER_DATA_SIZE
 updateTimer:		.BYTE	TIMER_DATA_SIZE
-flashFoodTimer:		.BYTE	TIMER_DATA_SIZE
+flashTimer:			.BYTE	TIMER_DATA_SIZE
 boardFlashTimer:	.BYTE	TIMER_DATA_SIZE
+
+bulletTimer:		.BYTE	TIMER_DATA_SIZE
+asteroidTimer:		.BYTE	TIMER_DATA_SIZE
+spawnTimer:			.BYTE	TIMER_DATA_SIZE
+shootTimer:			.BYTE	TIMER_DATA_SIZE
 
 // Snake data
 snake:				.BYTE	SNAKE_DATA_SIZE
@@ -196,9 +233,12 @@ tetrisBlockArrayX:	.BYTE	4 * 4 * TETRIS_BLOCKS
 tetrisBlockArrayY:	.BYTE	4 * 4 * TETRIS_BLOCKS
 tetrisBlockBitMap:	.BYTE	4 * 4 * TETRIS_BLOCKS
 
-// Asteroid data
+// Asteroids data
+ship:				.BYTE	SHIP_DATA_SIZE
 asteroidArray:		.BYTE	MAX_ASTEROIDS * ASTEROID_DATA_SIZE
-
+asteroidCount:		.BYTE	1
+bulletArray:		.BYTE	MAX_BULLETS * BULLET_DATA_SIZE
+bulletCount:		.BYTE	1
 
 
 	/**							
@@ -391,20 +431,6 @@ asteroidArray:		.BYTE	MAX_ASTEROIDS * ASTEROID_DATA_SIZE
 	
 	/**
 	 * Add programs to the main menu
-	 * @param @0 - the X position of the program pixel
-	 * @param @1 - the Y position of the program pixel
-	 * @param @2 - the label of the program subroutine
-	 */
-	/*.MACRO	addProgrami
-		ldi		rArgument0L, @0			// X
-		ldi		rArgument0H, @1			// Y
-		ldi		rArgument1L, LOW(@2)	// LOW(LABEL)
-		ldi		rArgument1H, HIGH(@2)	// HIGH(LABEL)
-		call	addProgram
-	.ENDMACRO*/
-
-	/**
-	 * Add programs to the main menu
 	 * @param @0 - the label to the icon drawing subroutine
 	 * @param @1 - the label of the program subroutine
 	 */
@@ -505,8 +531,13 @@ timer2OverflowInterupt:
 	
 	incrementTimeri renderTimer
 	incrementTimeri updateTimer
-	incrementTimeri flashFoodTimer
+	incrementTimeri flashTimer
 	incrementTimeri boardFlashTimer
+
+	incrementTimeri bulletTimer
+	incrementTimeri asteroidTimer
+	incrementTimeri spawnTimer
+	incrementTimeri shootTimer
 
 	pop		rArgument0H
 	pop		rArgument0L
@@ -544,7 +575,7 @@ timerTest:
 
 	initializeTimeri renderTimer,		TIMER_TEST_TIMER0_TIME
 	initializeTimeri updateTimer,		TIMER_TEST_TIMER1_TIME
-	initializeTimeri flashFoodTimer,	TIMER_TEST_TIMER2_TIME
+	initializeTimeri flashTimer,		TIMER_TEST_TIMER2_TIME
 	initializeTimeri boardFlashTimer,	TIMER_TEST_TIMER3_TIME
 
 	// timer mystery debug code
@@ -578,8 +609,8 @@ timerTestLoop:
 	st		Y+, rCounterL
 	st		Y+, rCounterH
 	
-	ldi		YH, HIGH(flashFoodTimer)	// Set Y to matrix address
-	ldi		YL, LOW(flashFoodTimer)
+	ldi		YH, HIGH(flashTimer)	// Set Y to matrix address
+	ldi		YL, LOW(flashTimer)
 	ld		rCounterL, Y+ 
 	ld		rCounterH, Y+
 	
@@ -605,7 +636,7 @@ timerTestLoop:
 
 	checkTimeri updateTimer
 	checkTimeri renderTimer
-	checkTimeri flashFoodTimer
+	checkTimeri flashTimer
 	checkTimeri boardFlashTimer
 
 	call	render
@@ -694,7 +725,7 @@ snakeGame:
 	call	snakeStartAnimation
 
 	initializeTimeri updateTimer, SNAKE_UPDATE_TIME
-	initializeTimeri flashFoodTimer, SNAKE_FOOD_UPDATE_TIME
+	initializeTimeri flashTimer, SNAKE_FOOD_UPDATE_TIME
 	
 	call	initializeSnake
 
@@ -758,7 +789,7 @@ snake_SkipChangeDirection:
 	breq	snake_Update
 
 	// check if it should make the food flash 
-	checkTimeri flashFoodTimer	// returns boolean whether the timer has reached it's target time and reset	
+	checkTimeri flashTimer	// returns boolean whether the timer has reached it's target time and reset	
 	cpi		rReturnL, 0
 	breq	snake_UpdateFlashFoodEnd
 
@@ -896,7 +927,7 @@ snakeStartRender:
 	call	render
 
 	// Wait for an update and then blink
-	checkTimeri boardFlashTimer		// returns boolean whether the timer has reached it's target time and reset	
+	checkTimeri boardFlashTimer			// returns boolean whether the timer has reached it's target time and reset	
 	cpi		rReturnL, 1
 	breq	snakeStartBlink			// If an update was recieved, blink
 	jmp		snakeStartRender		// If an update didn't occur, render and wait some more
@@ -2429,73 +2460,533 @@ tetrisClearLoop:
 
 
 /******************************************************************************************
- * Program: Asteroids																	  *
- * The classical game of asteroids														  *
+ * Program: Asteroids Game																  
+ * The classical game of asteroids														  
  *****************************************************************************************/
-asteroids:
+asteroidsGame:
+	call	clearMatrix
+	call	initializeAsteroidsGame
+	call	spawnAsteroid
+	//ldi	rArgument0L, 0
+	//call	removeAsteroid
+
+asteroidsGameLoop:
+	//jmp		asteroidsGameRender
+
+	checkTimeri asteroidTimer
+	cpi		rReturnL, 1
+	brne	skipAsteroidUpdate
+	call	moveAsteroids
+
+skipAsteroidUpdate:
+	checkTimeri spawnTimer
+	cpi		rReturnL, 1
+	brne	skipSpawn
+	call	spawnAsteroid
+	ldi		rArgument0L, 0
+	//call	removeAsteroid
+
+skipSpawn:
+
+asteroidsGameRender:
+	call	clearMatrix
+	call	drawAsteroids
+
+	.DEF	rTemp = r18
+
+	ldi		YL, LOW(asteroidCount)
+	ldi		YH, HIGH(asteroidCount)
+	ld		rTemp, Y
+
+	ldi		YL, LOW(matrix)
+	ldi		YH, HIGH(matrix)
+	//st		Y, rTemp
+
+	.UNDEF	rTemp
+
+	call	render
+	jmp		asteroidsGameLoop
 	
 	ret
-/* asteroids end */
+/* asteroidsGame end */
+
+
+/**
+ * initializeAsteroidsGame
+ */
+initializeAsteroidsGame:
+	// Hardware timer initializiton
+	ldi		rArgument0L, TIMER2_PRE_1024
+	call	initializeHardwareTimer2
+	
+	// Initialize timers
+	initializeTimeri updateTimer, ASTEROIDS_SHIP_UPDATE_TIME
+	initializeTimeri bulletTimer, ASTEROIDS_BULLET_UPDATE_TIME
+	initializeTimeri asteroidTimer, ASTEROIDS_ASTEROID_UPDATE_TIME
+	initializeTimeri spawnTimer, ASTEROIDS_SPAWN_TIME
+	initializeTimeri shootTimer, ASTEROIDS_SHOOT_TIME
+	initializeTimeri flashTimer, ASTEROIDS_BULLET_FLASH_TIME
+	
+	call	initializeShip
+
+		.DEF	rZero = r18
+
+	// Set the asteroid count to 0
+	ldi		YL, LOW(asteroidCount)
+	ldi		YH, HIGH(asteroidCount)
+	ldi		rZero,	0
+	st		Y, rZero
+
+	// Set the bullet count to 0
+	ldi		YL, LOW(asteroidCount)
+	ldi		YH, HIGH(asteroidCount)
+	ldi		rZero,	0
+	st		Y, rZero
+
+		.UNDEF	rZero
+
+	ret
+/* initializeAsteroidsGame end */
+
+
+/**
+ * initializeShip
+ */
+initializeShip:
+	
+	ret
+/* initializeShip end */
+
 
 
 
 /**
- * Create a new randomly positioned asteroid
+ * Display all the asteroids that currently exist
  */
-spawnAsteroid:
+drawAsteroids:
 		.DEF	rPositionX		= r2
 		.DEF	rPositionY		= r3
-		.DEF	rAxis			= r6		// Remember to push / pop
-		.DEF	rTemp			= r20
+		.DEF	rAsteroidCount	= r4
+		.DEF	rIterator		= r16
 
-	// Save registers that are being used
+	// Save the registers
+	push	rPositionX
+	push	rPositionY
+	push	rAsteroidCount
+	push	rIterator
+
+	// Load the asteroid count
+	ldi		YL, LOW(asteroidCount)
+	ldi		YH, HIGH(asteroidCount)
+	ld		rAsteroidCount, Y
+
+	// Load a pointer to the first asteroid instance
+	ldi		YL, LOW(asteroidArray)
+	ldi		YH, HIGH(asteroidArray)
+
+	// Set the iterator to the first index
+	ldi		rIterator, 0
+
+	cp		rIterator, rAsteroidCount
+	brlo	drawAsteroidLoop
+	
+	// If there aren't any asteroids, don't do anything
+	jmp		drawAsteroidsEnd
+
+drawAsteroidLoop:
+
+	// Load the position of the asteroid
+	ldd		rPositionX, Y + oAsteroidPositionX
+	ldd		rPositionY, Y + oAsteroidPositionY
+
+	// Draw the asteroid
+	push	YL
+	push	YH
+	setPixelr	rPositionX, rPositionY
+	pop		YH
+	pop		YL
+
+	// Increment the asteroid index
+	inc		rIterator
+	addiw	YL, YH, ASTEROID_DATA_SIZE
+
+	cp		rIterator, rAsteroidCount
+	brlo	moveAsteroidLoop
+
+drawAsteroidsEnd:
+
+	// Restore the registers
+	pop		rIterator
+	pop		rAsteroidCount
+	pop		rPositionY
+	pop		rPositionX
+
+		.UNDEF	rAsteroidCount
+		.UNDEF	rIterator
+		.UNDEF	rPositionX
+		.UNDEF	rPositionY
+	ret
+/* drawAsteroids end */
+
+
+
+/**
+ * Moves all the asteroids in the direction they are pointing
+ */
+moveAsteroids:
+		.DEF	rPositionX		= r16
+		.DEF	rPositionY		= r17
+		.DEF	rDirectionX		= r18
+		.DEF	rDirectionY		= r19
+		.DEF	rIterator		= r20
+		.DEF	rAsteroidCount	= r21
+
+	// Save the registers
 	push	rPositionX
 	push	rPositionY
 
-	// Generate 4 random bits for the direction (with the most random being the leftmost bit)
+	// Load the asteroid count
+	ldi		YL, LOW(asteroidCount)
+	ldi		YH, HIGH(asteroidCount)
+	ld		rAsteroidCount, Y
+
+	// Load a pointer to the first asteroid instance
+	ldi		YL, LOW(asteroidArray)
+	ldi		YH, HIGH(asteroidArray)
+
+	// Set the iterator to the first index
+	ldi		rIterator, 0
+
+	// If there aren't any asteroids, don't do anything
+	cp		rIterator, rAsteroidCount
+	brlo	moveAsteroidLoop
+	jmp		moveAsteroidsEnd
+
+moveAsteroidLoop:
+
+	// Load the data from the asteroid
+	ldd		rPositionX, Y + oAsteroidPositionX
+	ldd		rPositionY, Y + oAsteroidPositionY
+	ldd		rDirectionX, Y + oAsteroidDirectionX
+	ldd		rDirectionY, Y + oAsteroidDirectionY
+
+	// Move the asteroid in its current direction
+	add		rPositionX, rDirectionX
+	add		rPositionY, rDirectionY
+
+	// Wrap the position
+	andi	rPositionX, 0b00000111
+	andi	rPositionY, 0b00000111
+
+	// Store the updated position
+	std		Y + oAsteroidPositionX, rPositionX
+	std		Y + oAsteroidPositionY, rPositionY
+	
+	// Increment the asteroid index
+	inc		rIterator
+	addiw	YL, YH, ASTEROID_DATA_SIZE			
+
+	cp		rIterator, rAsteroidCount
+	brlo	moveAsteroidLoop
+
+moveAsteroidsEnd:
+
+	// Restore the registers
+	pop		rPositionY
+	pop		rPositionX
+
+		.UNDEF	rAsteroidCount
+		.UNDEF	rIterator
+		.UNDEF	rPositionX
+		.UNDEF	rPositionY
+		.UNDEF	rDirectionX
+		.UNDEF	rDirectionY
+	ret
+/* moveAsteroid end */
+
+
+
+/**
+ * Removes an asteroid from the list of asteroids currently in the game
+ * @param rArgument0L - the index of the asteroid to remove
+ */
+removeAsteroid:
+		.DEF	rPositionX		= r2
+		.DEF	rPositionY		= r3
+		.DEF	rDirectionX		= r4
+		.DEF	rDirectionY		= r5
+		.DEF	rAsteroidCount	= r18
+		.DEF	rTempi			= r19
+		.DEF	rRemoveIndex	= r20
+
+	// Save the registers that are used
+	push	rPositionX
+	push	rPositionY
+	push	rDirectionX
+	push	rDirectionY
+
+	// Get the argument
+	mov		rRemoveIndex, rArgument0L
+
+	// Load the asteroid count
+	ldi		YL, LOW(asteroidCount)
+	ldi		YH, HIGH(asteroidCount)
+	ld		rAsteroidCount, Y
+
+	// If the removed index is less than 0, crash
+	cpi		rRemoveIndex, 0
+	brlt	invalidAsteroidIndex	
+	
+	// If the removed index is higher than the highest index (asteroidCount - 1), crash
+	cp		rRemoveIndex, rAsteroidCount
+	brge	invalidAsteroidIndex
+
+	jmp		doRemoveAsteroid
+
+invalidAsteroidIndex:
+	terminateErrori	drawTemplarMatrix
+
+doRemoveAsteroid:
+
+	// Load a pointer to the first asteroid instance
+	ldi		YL, LOW(asteroidArray)
+	ldi		YH, HIGH(asteroidArray)
+	
+	// Get the offset to the last asteroid
+	ldi		rTempi, ASTEROID_DATA_SIZE
+	mul		rTempi, rAsteroidCount
+	add		rMulResL, rTempi	// Go one step back, since the index = count - 1
+
+	// Add it to the pointer
+	ldi		rTempi, 0
+	add		YL, rMulResL
+	adc		YH, rTempi		// Add the carry if we get an overflow in the lower byte
+	
+	// Get the data from the last asteroid instance
+	ldd		rPositionX, Y + oAsteroidPositionX
+	ldd		rPositionY, Y + oAsteroidPositionY
+	ldd		rDirectionX, Y + oAsteroidDirectionX
+	ldd		rDirectionY, Y + oAsteroidDirectionY
+	
+	// Load a pointer to the first asteroid instance
+	ldi		YL, LOW(asteroidArray)
+	ldi		YH, HIGH(asteroidArray)
+	
+	// Get the offset to the removed asteroid
+	ldi		rTempi, ASTEROID_DATA_SIZE
+	mul		rTempi, rRemoveIndex
+
+	// Add it to the pointer
+	ldi		rTempi, 0
+	add		YL, rMulResL
+	adc		YH, rTempi		// Add the carry if we get an overflow in the lower byte
+
+	// Move the data from the last index to the removed index
+	std		Y + oAsteroidPositionX, rPositionX
+	std		Y + oAsteroidPositionY, rPositionY
+	std		Y + oAsteroidDirectionX, rDirectionX
+	std		Y + oAsteroidDirectionY, rDirectionY
+
+	// Decrement the asteroid count
+	dec		rAsteroidCount
+	ldi		YL, LOW(asteroidCount)
+	ldi		YH, HIGH(asteroidCount)
+	st		Y, rAsteroidCount
+
+	// Restore registers that are used
+	pop		rDirectionY
+	pop		rDirectionX
+	pop		rPositionY
+	pop		rPositionX
+
+		.UNDEF	rPositionX
+		.UNDEF	rPositionY
+		.UNDEF	rDirectionX
+		.UNDEF	rDirectionY
+		.UNDEF	rAsteroidCount
+		.UNDEF	rTempi	
+		.UNDEF	rRemoveIndex
+
+	ret
+/* removeAsteroid end */
+
+
+/**
+ * Creates a new asteroid, which is placed randomly along one of the edges of the
+ * screen and given a random movement direction
+ */
+spawnAsteroid:
+		.DEF	rDirectionX		= r4
+		.DEF	rDirectionY		= r5
+		.DEF	rPositionX		= r16
+		.DEF	rPositionY		= r17
+
+	// Save registers that are being used
+	push	rDirectionX
+	push	rDirectionY
+	push	rPositionX
+	push	rPositionY
+
+		.DEF	rAsteroidCount	= r18
+
+	// Load the asteroid count
+	ldi		YL, LOW(asteroidCount)
+	ldi		YH, HIGH(asteroidCount)
+	ld		rAsteroidCount, Y
+
+	// If the maximum amount of asteroids has already been reached, crash
+	cpi		rAsteroidCount, MAX_ASTEROIDS
+	brlo	generateAsteroid	
+	crash
+
+		.UNDEF	rAsteroidCount
+
+generateAsteroid:
+	// Generate 4 random bits for the direction (most random to the left)
 	ldi		rArgument0L, JOYSTICK_X_AXIS
 	call	generateRandom4BitValue
+	
+	ldi		rReturnL, 0b0001		// TODO Remove manual override
 
-	// Get the axis bit (X = 0, Y = 1)
-	mov		rAxis, rReturnL
-	andi	rAxis, 0x0001						// ERROR: USING IMMIDATE ON LOW REGISTER
-
-		.DEF	rDirectionIndex = r19
-
-	// Get the direction index (upper 3 bits of the 4 generated)
+		.DEF	rDirectionIndex = r18
+		.DEF	rTempi			= r19
+		.DEF	rAxis			= r20
+		
+	// Get the direction index (upper 3 bits of 4)
 	mov		rDirectionIndex, rReturnL
 	lsr		rDirectionIndex
 
-	// Rotate axis aligned directions by 90 degrees (these are difficult to work with and aren't fun ingame)
-	ldi		rTemp, 0						// Use rTemp as a boolean
+	// Get the axis bit (Y = 0, X = 1)
+	andi	rReturnL, 0x0001
+	mov		rAxis, rReturnL
 
-	// If the first bit equals 1 (odd index), the direction points diagonally, i.e. not axis aligned
-	bst		rDirectionIndex, 0
-	bld		rTemp, 0
-	cp		rDirectionIndex, 1						// ERROR: DID YOU MEAN CPI?
+	// Rotate axis aligned directions by 90 degrees
+	ldi		rTempi, 0						// Use rTempi as a boolean
+
+	bst		rDirectionIndex, 0				// If the first bit equals 1 (odd index), the direction points diagonally, i.e. not axis aligned
+	bld		rTempi, 0
+	cpi		rTempi, 1
 	breq	notAxisAligned
 
-	// If the index
-	bst		rDirectionIndex, 0
-	bld		rTemp, 0
-	cp		rDirectionIndex, 1						// ERROR: DID YOU MEAN CPI?
-	breq	notAxisAligned
+	bst		rDirectionIndex, 1				// The second bit tells the axis (Y = 0, X = 1)
+	bld		rTempi, 0
+	cp		rTempi, rAxis					// Compare the direction to the axis and if they are aligned rotate it
+	brne	notAxisAligned
+
+	// If the direction was aligned with the axis, add 2 to the direction index to rotate 90 degrees
+	ldi		rTempi, 2
+	add		rDirectionIndex, rTempi
+	andi	rDirectionIndex, 0b00000111		// Wrap the index if it overflowed
 
 notAxisAligned:
 
-		.UNDEF	rDirectionIndex
+	// Get the direction as a vector
+	mov		rArgument0L, rDirectionIndex
+	push	rAxis							// Save the axis register before the call
+	call	valueToDirection8
+	pop		rAxis							// Restore the axis register
+	mov		rDirectionX, rReturnL
+	mov		rDirectionY, rReturnH
 
+		.UNDEF	rDirectionIndex
+		.UNDEF	rTempi
+
+	// Generate 3 random bits for the position
+	ldi		rArgument0L, JOYSTICK_Y_AXIS
+	call	generateRandom3BitValue
+
+	ldi		rReturnL, 0b100		// TODO Remove manual override
+
+		/* Create a register containing 0 */
+		.DEF	rZero = r19
+	ldi		rZero, 0
+
+	// Place the position value on the right axis
+	cpi		rAxis, 1
+	breq	setHorizontalPosition
+
+setVerticalPosition:
+	// Set the Y coordinate
+	mov		rPositionY, rReturnL			
+	//ldi		rPositionY, 3
+
+	// If the asteroid is pointing right, spawn it to the left
+	ldi		rPositionX, 0					
+	cp		rDirectionX, rZero				
+	brge	setHorizontalPosition
+
+	// If the asteroid is pointing left, spawn it to the right
+	ldi		rPositionX, 7					
+
+	jmp		storeAsteroidData
+
+setHorizontalPosition:
+	// Set the X coordinate
+	mov		rPositionX, rReturnL
+	//ldi		rPositionX, 3			
+
+	// If the asteroid is pointing down, spawn it at the top
+	ldi		rPositionY, 0					
+	cp		rDirectionY, rZero
+	brge	storeAsteroidData
+
+	// If the asteroid is pointing up, spawn it at the bottom
+	ldi		rPositionY, 7					
+
+		.UNDEF	rZero
+		.UNDEF	rAxis
+	
+storeAsteroidData:
+		.DEF	rAsteroidCount	= r18
+		.DEF	rTempi			= r19
+
+	// Load the asteroid count
+	ldi		YL, LOW(asteroidCount)
+	ldi		YH, HIGH(asteroidCount)
+	ld		rAsteroidCount, Y
+
+	// Load a pointer to the first asteroid instance
+	ldi		YL, LOW(asteroidArray)
+	ldi		YH, HIGH(asteroidArray)
+	
+	// Get the offset to the current asteroid
+	ldi		rTempi, ASTEROID_DATA_SIZE
+	mul		rTempi, rAsteroidCount
+
+	// Add it to the pointer
+	ldi		rTempi, 0
+	add		YL, rMulResL
+	adc		YH, rTempi		// Add the carry if we get an overflow in the lower byte
+	
+	// Store the data
+	std		Y + oAsteroidPositionX, rPositionX
+	std		Y + oAsteroidPositionY, rPositionY
+	std		Y + oAsteroidDirectionX, rDirectionX
+	std		Y + oAsteroidDirectionY, rDirectionY
+		
+	// Increment the asteroid count
+	inc		rAsteroidCount
+	ldi		YL, LOW(asteroidCount)
+	ldi		YH, HIGH(asteroidCount)
+	st		Y, rAsteroidCount
+
+		.UNDEF	rTempi
+		.UNDEF	rAsteroidCount
 
 	// Restore registers that are used
 	pop		rPositionY
 	pop		rPositionX
-
-	ret
+	pop		rDirectionY
+	pop		rDirectionX
+		
 		.UNDEF	rPositionX
 		.UNDEF	rPositionY
-		.UNDEF	rAxis
-		.UNDEF	rTemp
- /* generateAsteroid end */
+		.UNDEF	rDirectionX
+		.UNDEF	rDirectionY
+
+	ret
+/* spawnAsteroid end */
+
 
 
 
@@ -2503,8 +2994,8 @@ notAxisAligned:
  * Returns a direction vector based on a 3 bit value. Starting with 0 straight up, the directions move
  * clockwise byt 45 degrees with each index.
  * @param rArgumen0L - 3 bit value used as direction index
- * @param rReturnL - Signed X direction (-1, 0, 1)
- * @param rReturnH - Signed Y direction (-1, 0, 1)
+ * @return rReturnL - Signed X direction (-1, 0, 1)
+ * @return rReturnH - Signed Y direction (-1, 0, 1)
  */
 valueToDirection8:
 		.DEF	rDirectionIndex = r18
@@ -2534,35 +3025,35 @@ valueToDirection8:
 	breq	directionIndex7
 
 	// Set the direction
-	directionIndex0:
+directionIndex0:
 	ldi		rDirectionX, 0
 	ldi		rDirectionY, -1
 	jmp		valueToDirection8End
-	directionIndex1:
+directionIndex1:
 	ldi		rDirectionX, 1
 	ldi		rDirectionY, -1
 	jmp		valueToDirection8End
-	directionIndex2:
+directionIndex2:
 	ldi		rDirectionX, 1
 	ldi		rDirectionY, 0
 	jmp		valueToDirection8End
-	directionIndex3:
+directionIndex3:
 	ldi		rDirectionX, 1
 	ldi		rDirectionY, 1
 	jmp		valueToDirection8End
-	directionIndex4:
+directionIndex4:
 	ldi		rDirectionX, 0
 	ldi		rDirectionY, 1
 	jmp		valueToDirection8End
-	directionIndex5:
+directionIndex5:
 	ldi		rDirectionX, -1
 	ldi		rDirectionY, 1
 	jmp		valueToDirection8End
-	directionIndex6:
+directionIndex6:
 	ldi		rDirectionX, -1
 	ldi		rDirectionY, 0
 	jmp		valueToDirection8End
-	directionIndex7:
+directionIndex7:
 	ldi		rDirectionX, -1
 	ldi		rDirectionY, -1
 	jmp		valueToDirection8End
@@ -2572,17 +3063,17 @@ valueToDirection8End:
 	// Set the return values
 	mov		rReturnL, rDirectionX
 	mov		rReturnH, rDirectionY
-
-	ret
 		
 		.UNDEF	rDirectionX
 		.UNDEF	rDirectionY
 		.UNDEF	rDirectionIndex
+
+	ret
 /* valueToDirection8 end */
 
 
 /******************************************************************************************
- * End Asteroids																	  
+ * End Asteroids Game																	  
  *****************************************************************************************/
 
 
@@ -2758,18 +3249,17 @@ drawErrorImage1:
 	call	drawSkullMatrix
 	jmp		errorLoopEnd
 drawErrorImage2:
-	call	drawTemplarMatrix
-	jmp		errorLoopEnd
-drawErrorImage3:
-	call	drawSmileyMatrix
-	jmp		errorLoopEnd
-drawErrorImage4:
 	call	drawOutOfBoundsWriteMatrix
 	jmp		errorLoopEnd
-drawErrorImage5:
+drawErrorImage3:
 	call	drawOutOfBoundsReadMatrix
 	jmp		errorLoopEnd
-
+drawErrorImage4:
+	call	drawTemplarMatrix
+	jmp		errorLoopEnd
+drawErrorImage5:
+	call	drawSmileyMatrix
+	jmp		errorLoopEnd
 
 errorLoopEnd:
 
@@ -4670,7 +5160,7 @@ main:
 	// Add programs
 	addProgrami drawSnakeIcon, snakeGame
 	addProgrami drawTetrisIcon, tetrisGame
-	addProgrami drawAsteroidsIcon, asteroids
+	addProgrami drawAsteroidsIcon, asteroidsGame
 	
 	addProgrami drawTimerIcon, timerTest
 	addProgrami drawRandomIcon, randomPixelDraw
