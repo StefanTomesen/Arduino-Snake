@@ -2467,8 +2467,7 @@ asteroidsGame:
 	call	clearMatrix
 	call	initializeAsteroidsGame
 	call	spawnAsteroid
-	//ldi	rArgument0L, 0
-	//call	removeAsteroid
+	call	spawnAsteroid
 
 asteroidsGameLoop:
 	//jmp		asteroidsGameRender
@@ -2483,27 +2482,12 @@ skipAsteroidUpdate:
 	cpi		rReturnL, 1
 	brne	skipSpawn
 	call	spawnAsteroid
-	ldi		rArgument0L, 0
-	//call	removeAsteroid
 
 skipSpawn:
 
 asteroidsGameRender:
 	call	clearMatrix
 	call	drawAsteroids
-
-	.DEF	rTemp = r18
-
-	ldi		YL, LOW(asteroidCount)
-	ldi		YH, HIGH(asteroidCount)
-	ld		rTemp, Y
-
-	ldi		YL, LOW(matrix)
-	ldi		YH, HIGH(matrix)
-	//st		Y, rTemp
-
-	.UNDEF	rTemp
-
 	call	render
 	jmp		asteroidsGameLoop
 	
@@ -2599,6 +2583,17 @@ drawAsteroidLoop:
 	ldd		rPositionX, Y + oAsteroidPositionX
 	ldd		rPositionY, Y + oAsteroidPositionY
 
+		.DEF	rTempi = r18
+
+	mov		rTempi, rPositionX
+	andi	rTempi, 0b00000111
+	mov		rPositionX, rTempi
+	mov		rTempi, rPositionY
+	andi	rTempi, 0b00000111
+	mov		rPositionY, rTempi
+
+		.UNDEF	rTempi
+
 	// Draw the asteroid
 	push	YL
 	push	YH
@@ -2611,7 +2606,7 @@ drawAsteroidLoop:
 	addiw	YL, YH, ASTEROID_DATA_SIZE
 
 	cp		rIterator, rAsteroidCount
-	brlo	moveAsteroidLoop
+	brlo	drawAsteroidLoop
 
 drawAsteroidsEnd:
 
@@ -2846,7 +2841,7 @@ generateAsteroid:
 	ldi		rArgument0L, JOYSTICK_X_AXIS
 	call	generateRandom4BitValue
 	
-	ldi		rReturnL, 0b0001		// TODO Remove manual override
+	//ldi		rReturnL, 0b0001		// TODO Remove manual override
 
 		.DEF	rDirectionIndex = r18
 		.DEF	rTempi			= r19
@@ -2895,7 +2890,7 @@ notAxisAligned:
 	ldi		rArgument0L, JOYSTICK_Y_AXIS
 	call	generateRandom3BitValue
 
-	ldi		rReturnL, 0b100		// TODO Remove manual override
+	//ldi		rReturnL, 0b100		// TODO Remove manual override
 
 		/* Create a register containing 0 */
 		.DEF	rZero = r19
@@ -2908,7 +2903,6 @@ notAxisAligned:
 setVerticalPosition:
 	// Set the Y coordinate
 	mov		rPositionY, rReturnL			
-	//ldi		rPositionY, 3
 
 	// If the asteroid is pointing right, spawn it to the left
 	ldi		rPositionX, 0					
@@ -2923,7 +2917,6 @@ setVerticalPosition:
 setHorizontalPosition:
 	// Set the X coordinate
 	mov		rPositionX, rReturnL
-	//ldi		rPositionX, 3			
 
 	// If the asteroid is pointing down, spawn it at the top
 	ldi		rPositionY, 0					
