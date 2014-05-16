@@ -124,7 +124,7 @@
 
 	/* Asteroid */
 	// Constants
-	.EQU	MAX_ASTEROIDS			= 16
+	.EQU	MAX_ASTEROIDS			= 8
 	.EQU	ASTEROID_DATA_SIZE		= 4
 	// Data structure
 	.EQU	oAsteroidPositionX			= 0x00
@@ -134,7 +134,7 @@
 
 	/* Bullet */
 	// Constants
-	.EQU	MAX_BULLETS				= 16
+	.EQU	MAX_BULLETS				= 8
 	.EQU	BULLET_DATA_SIZE		= 5
 	// Data structure
 	.EQU	oBulletPositionX		= 0x00
@@ -1715,22 +1715,22 @@ initializeTetris:
  * tetrisStartAnimation
  */
 tetrisStartAnimation:
-		.DEF rInterator = r18
+		.DEF rIterator = r18
 
 	initializeTimeri updateTimer, TETRIS_START_UPDATE_TIME
 
 	// there are 7 differend Blocks
-	ldi		rInterator, 7
+	ldi		rIterator, 7
 
 tetrisStartLoop:
-	push	rInterator
+	push	rIterator
 	call	clearMatrix
 	call	drawTetrisBlock
-	pop		rInterator
+	pop		rIterator
 
 	// if shown all blocks, end
-	dec		rInterator
-	cpi		rInterator, 0
+	dec		rIterator
+	cpi		rIterator, 0
 	breq	tetrisStartReturn
 
 tetrisStartRender:
@@ -2466,8 +2466,6 @@ tetrisClearLoop:
 asteroidsGame:
 	call	clearMatrix
 	call	initializeAsteroidsGame
-	call	spawnAsteroid
-	call	spawnAsteroid
 
 asteroidsGameLoop:
 	//jmp		asteroidsGameRender
