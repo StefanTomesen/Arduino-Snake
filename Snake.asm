@@ -195,6 +195,7 @@
 	.EQU	ASTEROIDS_SPAWN_TIME			= 220
 	.EQU	ASTEROIDS_SHOOT_TIME			= 32
 	.EQU	ASTEROIDS_BULLET_FLASH_TIME		= ASTEROIDS_BULLET_UPDATE_TIME / 2
+	.EQU	ASTEROIDS_ANIMATION_FRAME_TIME	= 16
 
 
 	/**							
@@ -2488,6 +2489,7 @@ tetrisClearLoop:
  *****************************************************************************************/
 asteroidsGame:
 	call	clearMatrix
+	call	asteroidsEndAnimation
 	call	initializeAsteroidsGame
 
 asteroidsGameLoop:
@@ -3744,6 +3746,392 @@ doRemoveAsteroid:
 /* removeAsteroid end */
 
 
+/**
+ * Renders an animation of the ship hitting an asteroid and exploding after the game 
+ * has been lost.
+ */
+asteroidsEndAnimation:
+	
+		.DEF	rCurrentFrame = r16	
+	
+	// Save the register that is used
+	push	rCurrentFrame
+
+	// Set the up a frame timer
+	initializeTimeri renderTimer, ASTEROIDS_ANIMATION_FRAME_TIME
+
+	// Start the frame 
+	ldi		rCurrentFrame, 0
+
+asteroidsEndAnimationLoop:
+	
+	// Draw the current frame of the animation
+	mov		rArgument0L, rCurrentFrame
+	call	drawAsteroidsExplosionAnimationFrame
+
+	// Increment the frame index
+	inc		rCurrentFrame
+
+	// Run the loop for 13 frames
+	cpi		rCurrentFrame, 13
+	brlo	asteroidsEndAnimationLoop
+
+	// Restore the register
+	pop		rCurrentFrame
+
+		.UNDEF	rCurrentFrame 
+	
+	ret
+/* asteroidsEndAnimation end */
+
+
+/**
+ * Draws a frame from the explosion animation in the game asteroids. 
+ * @param rArgument0L - The index of the frame to be drawn
+ */
+drawAsteroidsExplosionAnimationFrame:
+		/* Register used for the pixels in a row */
+		.DEF	rRowBits	= r18
+
+	// Get a pointer to the matrix
+	ldi		YH, HIGH(matrix)
+	ldi		YL, LOW(matrix)
+
+
+	// Select the correct frame to draw. Branching is unfortunately out of range, so a jump is required
+	cpi		rArgument0L, 0
+	brne	skipAsteroidsExplosionFrame0
+	jmp		asteroidsExplosionFrame0
+skipAsteroidsExplosionFrame0:
+
+	cpi		rArgument0L, 1
+	brne	skipAsteroidsExplosionFrame1
+	jmp		asteroidsExplosionFrame1
+skipAsteroidsExplosionFrame1:
+
+	cpi		rArgument0L, 2
+	brne	skipAsteroidsExplosionFrame2
+	jmp		asteroidsExplosionFrame2
+skipAsteroidsExplosionFrame2:
+
+	cpi		rArgument0L, 3
+	brne	skipAsteroidsExplosionFrame3
+	jmp		asteroidsExplosionFrame3
+skipAsteroidsExplosionFrame3:
+
+	cpi		rArgument0L, 4
+	brne	skipAsteroidsExplosionFrame4
+	jmp		asteroidsExplosionFrame4
+skipAsteroidsExplosionFrame4:
+
+	cpi		rArgument0L, 5
+	brne	skipAsteroidsExplosionFrame5
+	jmp		asteroidsExplosionFrame5
+skipAsteroidsExplosionFrame5:
+
+	cpi		rArgument0L, 6
+	brne	skipAsteroidsExplosionFrame6
+	jmp		asteroidsExplosionFrame6
+skipAsteroidsExplosionFrame6:
+
+	cpi		rArgument0L, 7
+	brne	skipAsteroidsExplosionFrame7
+	jmp		asteroidsExplosionFrame7
+skipAsteroidsExplosionFrame7:
+
+	cpi		rArgument0L, 8
+	brne	skipAsteroidsExplosionFrame8
+	jmp		asteroidsExplosionFrame8
+skipAsteroidsExplosionFrame8:
+
+	cpi		rArgument0L, 9
+	brne	skipAsteroidsExplosionFrame9
+	jmp		asteroidsExplosionFrame9
+skipAsteroidsExplosionFrame9:
+
+	cpi		rArgument0L, 10
+	brne	skipAsteroidsExplosionFrame10
+	jmp		asteroidsExplosionFrame10
+skipAsteroidsExplosionFrame10:
+
+	cpi		rArgument0L, 11
+	brne	skipAsteroidsExplosionFrame11
+	jmp		asteroidsExplosionFrame11
+skipAsteroidsExplosionFrame11:
+
+	cpi		rArgument0L, 12
+	brne	skipAsteroidsExplosionFrame12
+	jmp		asteroidsExplosionFrame12
+skipAsteroidsExplosionFrame12:
+
+
+	// The list of frames to draw
+
+asteroidsExplosionFrame0:
+	ldi		rRowBits, 0b00000011
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b00000001
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b00000000
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b00000000
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b00000000
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b00000000
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b00000000
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b00000000
+	st		Y+, rRowBits
+
+	ret									// Return
+
+asteroidsExplosionFrame1:
+	ldi		rRowBits, 0b00000001
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b00000111
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b00000011
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b00000000
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b00000000
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b00000000
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b11000000
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b01000000
+	st		Y+, rRowBits
+
+	ret									// Return
+
+asteroidsExplosionFrame2:
+	ldi		rRowBits, 0b00000000
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b00000100
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b00001111
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b00000110
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b00110000
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b00010000
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b00000000
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b00000000
+	st		Y+, rRowBits
+
+	ret									// Return
+
+asteroidsExplosionFrame3:
+	ldi		rRowBits, 0b00000000
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b10101000
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b00010000
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b00111010
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b00011110
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b00100100
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b00000000
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b00001001
+	st		Y+, rRowBits
+
+	ret									// Return
+
+asteroidsExplosionFrame4:
+	ldi		rRowBits, 0b10000100
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b00101001
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b01011101
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b00111101
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b01011110
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b01101010
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b10010101
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b00100100
+	st		Y+, rRowBits
+
+	ret									// Return
+
+asteroidsExplosionFrame5:
+	ldi		rRowBits, 0b11110100
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b01011101
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b01111111
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b11111101
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b01111111
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b11111110
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b10111011
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b01011101
+	st		Y+, rRowBits
+
+	ret									// Return
+
+asteroidsExplosionFrame6:
+	ldi		rRowBits, 0b11111111
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b11111111
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b11111111
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b11111111
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b11111111
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b11111111
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b11111111
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b11111111
+	st		Y+, rRowBits
+
+	ret									// Return
+
+asteroidsExplosionFrame7:
+	ldi		rRowBits, 0b11111111
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b11111111
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b11111111
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b11100111
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b11101111
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b11111111
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b11111111
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b11111111
+	st		Y+, rRowBits
+
+	ret									// Return
+
+asteroidsExplosionFrame8:
+	ldi		rRowBits, 0b0111111
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b01111111
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b11110111
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b11000010
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b11100111
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b11011111
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b01110111
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b11110101
+	st		Y+, rRowBits
+
+	ret									// Return
+
+asteroidsExplosionFrame9:
+	ldi		rRowBits, 0b00111010
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b01110101
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b10010111
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b01000000
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b11000001
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b11100111
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b00110011
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b01100100
+	st		Y+, rRowBits
+
+	ret									// Return
+
+asteroidsExplosionFrame10:
+	ldi		rRowBits, 0b10000100
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b01001001
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b00000001
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b00000000
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b10000000
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b00100010
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b01000110
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b00010000
+	st		Y+, rRowBits
+
+	ret									// Return
+
+asteroidsExplosionFrame11:
+	ldi		rRowBits, 0b00000000
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b10000000
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b00000001
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b00000000
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b00000000
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b00000000
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b00000010
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b00000000
+	st		Y+, rRowBits
+
+	ret									// Return
+
+asteroidsExplosionFrame12:
+	ldi		rRowBits, 0b00000000
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b00000000
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b00000000
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b00000000
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b00000000
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b00000000
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b00000000
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b00000000
+	st		Y+, rRowBits
+
+	ret									// Return
+
+		.UNDEF	rRowBits
+/* drawAsteroidsExplosionAnimationFrame end */	
+
+
+
 /******************************************************************************************
  * End Asteroids Game																	  
  *****************************************************************************************/
@@ -4654,7 +5042,7 @@ drawOutOfBoundsWriteMatrix:
 		/* Register used for the pixels in a row */
 		.DEF	rRowBits	= r18
 
-	// Initialize the matrix with a skull
+	// Draw the out of bounds write symbol
 	ldi		YH, HIGH(matrix)	// Set Y to matrix address
 	ldi		YL, LOW(matrix)
 	ldi		rRowBits, 0b10100000 
@@ -4688,7 +5076,7 @@ drawOutOfBoundsReadMatrix:
 		/* Register used for the pixels in a row */
 		.DEF	rRowBits	= r18
 
-	// Initialize the matrix with a skull
+	// Draw the out of bounds read symbol
 	ldi		YH, HIGH(matrix)	// Set Y to matrix address
 	ldi		YL, LOW(matrix)
 	ldi		rRowBits, 0b11100000 
