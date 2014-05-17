@@ -328,13 +328,36 @@ bulletCount:		.BYTE	1
 
 	/**
 	 * Add constant to a 16 bit composite virtual register outside of X, Y and Z
-	 * param @0 - Low register
-	 * param @1 - High register
-	 * param @2 - 16 bit constant
+	 * @param @0 - Low register
+	 * @param @1 - High register
+	 * @param @2 - 16 bit constant
 	 */
 	.MACRO addiw 
 		subi	@0, LOW(-@2)
 		sbci	@1, HIGH(-@2)
+	.ENDMACRO
+
+
+	/**
+	 * Subtract constant from a 16 bit composite virtual register outside of X, Y and Z
+	 * @param @0 - Low register
+	 * @param @1 - High register
+	 * @param @2 - 16 bit constant
+	 */
+	.MACRO subiw
+		subi	@0, LOW(@2)
+		sbci	@1, HIGH(@2)
+	.ENDMACRO
+
+
+
+	/**
+	 * Replicate the normal add with immediate behaviour instead of having to use reverse subtraction.
+	 * @param @0 - Register to add to
+	 * @param @1 - 8 bit constant
+	 */
+	.MACRO	addi
+		subi	@0, -@1
 	.ENDMACRO
 
 	/**
@@ -1744,7 +1767,7 @@ tetrisStartRender:
 
 tetrisStartReturn:
 
-		.UNDEF	rInterator
+		.UNDEF	rIterator
 				
 	ret
 /* tetrisStartAnimation end */
@@ -2531,11 +2554,37 @@ initializeAsteroidsGame:
 /* initializeAsteroidsGame end */
 
 
+
 /**
- * initializeShip
+ * Initialize the ship with its default values
  */
 initializeShip:
+		.DEF	rPositionX		= r18
+		.DEF	rPositionY		= r19
+		.DEF	rDirectionX		= r20
+		.DEF	rDirectionY		= r21
 	
+	// Load a pointer to the first asteroid instance
+	ldi		YL, LOW(ship)
+	ldi		YH, HIGH(ship)
+	
+	// Set the default values for the ship
+	ldi		rPositionX, 4
+	ldi		rPositionY, 4
+	ldi		rDirectionX, -1
+	ldi		rDirectionY, -1
+
+	// Store the data
+	std		Y + oShipPositionX, rPositionX
+	std		Y + oShipPositionY, rPositionY
+	std		Y + oShipDirectionX, rDirectionX
+	std		Y + oShipDirectionY, rDirectionY
+
+		.UNDEF	rPositionX
+		.UNDEF	rPositionY
+		.UNDEF	rDirectionX
+		.UNDEF	rDirectionY
+
 	ret
 /* initializeShip end */
 
@@ -2543,127 +2592,29 @@ initializeShip:
 
 
 /**
- * Display all the asteroids that currently exist
+ * Moves the ship in the direction it's pointing
  */
-drawAsteroids:
-		.DEF	rPositionX		= r2
-		.DEF	rPositionY		= r3
-		.DEF	rAsteroidCount	= r4
-		.DEF	rIterator		= r16
-
-	// Save the registers
-	push	rPositionX
-	push	rPositionY
-	push	rAsteroidCount
-	push	rIterator
-
-	// Load the asteroid count
-	ldi		YL, LOW(asteroidCount)
-	ldi		YH, HIGH(asteroidCount)
-	ld		rAsteroidCount, Y
-
-	// Load a pointer to the first asteroid instance
-	ldi		YL, LOW(asteroidArray)
-	ldi		YH, HIGH(asteroidArray)
-
-	// Set the iterator to the first index
-	ldi		rIterator, 0
-
-	cp		rIterator, rAsteroidCount
-	brlo	drawAsteroidLoop
-	
-	// If there aren't any asteroids, don't do anything
-	jmp		drawAsteroidsEnd
-
-drawAsteroidLoop:
-
-	// Load the position of the asteroid
-	ldd		rPositionX, Y + oAsteroidPositionX
-	ldd		rPositionY, Y + oAsteroidPositionY
-
-		.DEF	rTempi = r18
-
-	mov		rTempi, rPositionX
-	andi	rTempi, 0b00000111
-	mov		rPositionX, rTempi
-	mov		rTempi, rPositionY
-	andi	rTempi, 0b00000111
-	mov		rPositionY, rTempi
-
-		.UNDEF	rTempi
-
-	// Draw the asteroid
-	push	YL
-	push	YH
-	setPixelr	rPositionX, rPositionY
-	pop		YH
-	pop		YL
-
-	// Increment the asteroid index
-	inc		rIterator
-	addiw	YL, YH, ASTEROID_DATA_SIZE
-
-	cp		rIterator, rAsteroidCount
-	brlo	drawAsteroidLoop
-
-drawAsteroidsEnd:
-
-	// Restore the registers
-	pop		rIterator
-	pop		rAsteroidCount
-	pop		rPositionY
-	pop		rPositionX
-
-		.UNDEF	rAsteroidCount
-		.UNDEF	rIterator
-		.UNDEF	rPositionX
-		.UNDEF	rPositionY
-	ret
-/* drawAsteroids end */
-
-
-
-/**
- * Moves all the asteroids in the direction they are pointing
- */
-moveAsteroids:
+moveShip:
 		.DEF	rPositionX		= r16
 		.DEF	rPositionY		= r17
 		.DEF	rDirectionX		= r18
 		.DEF	rDirectionY		= r19
-		.DEF	rIterator		= r20
-		.DEF	rAsteroidCount	= r21
 
 	// Save the registers
 	push	rPositionX
 	push	rPositionY
 
-	// Load the asteroid count
-	ldi		YL, LOW(asteroidCount)
-	ldi		YH, HIGH(asteroidCount)
-	ld		rAsteroidCount, Y
+	// Load a pointer to the ship instance
+	ldi		YL, LOW(ship)
+	ldi		YH, HIGH(ship)
 
-	// Load a pointer to the first asteroid instance
-	ldi		YL, LOW(asteroidArray)
-	ldi		YH, HIGH(asteroidArray)
+	// Load the data from the ship
+	ldd		rPositionX, Y + oShipPositionX
+	ldd		rPositionY, Y + oShipPositionY
+	ldd		rDirectionX, Y + oShipDirectionX
+	ldd		rDirectionY, Y + oShipDirectionY
 
-	// Set the iterator to the first index
-	ldi		rIterator, 0
-
-	// If there aren't any asteroids, don't do anything
-	cp		rIterator, rAsteroidCount
-	brlo	moveAsteroidLoop
-	jmp		moveAsteroidsEnd
-
-moveAsteroidLoop:
-
-	// Load the data from the asteroid
-	ldd		rPositionX, Y + oAsteroidPositionX
-	ldd		rPositionY, Y + oAsteroidPositionY
-	ldd		rDirectionX, Y + oAsteroidDirectionX
-	ldd		rDirectionY, Y + oAsteroidDirectionY
-
-	// Move the asteroid in its current direction
+	// Move the ship in its current direction
 	add		rPositionX, rDirectionX
 	add		rPositionY, rDirectionY
 
@@ -2672,43 +2623,452 @@ moveAsteroidLoop:
 	andi	rPositionY, 0b00000111
 
 	// Store the updated position
-	std		Y + oAsteroidPositionX, rPositionX
-	std		Y + oAsteroidPositionY, rPositionY
-	
-	// Increment the asteroid index
-	inc		rIterator
-	addiw	YL, YH, ASTEROID_DATA_SIZE			
-
-	cp		rIterator, rAsteroidCount
-	brlo	moveAsteroidLoop
-
-moveAsteroidsEnd:
+	std		Y + oShipPositionX, rPositionX
+	std		Y + oShipPositionY, rPositionY
 
 	// Restore the registers
 	pop		rPositionY
 	pop		rPositionX
 
-		.UNDEF	rAsteroidCount
-		.UNDEF	rIterator
 		.UNDEF	rPositionX
 		.UNDEF	rPositionY
 		.UNDEF	rDirectionX
 		.UNDEF	rDirectionY
 	ret
-/* moveAsteroid end */
+/* moveShip end */
 
 
 
 /**
- * Removes an asteroid from the list of asteroids currently in the game
- * @param rArgument0L - the index of the asteroid to remove
+ * Draw the ship on the screen
  */
-removeAsteroid:
+drawship:
 		.DEF	rPositionX		= r2
 		.DEF	rPositionY		= r3
 		.DEF	rDirectionX		= r4
 		.DEF	rDirectionY		= r5
-		.DEF	rAsteroidCount	= r18
+		.DEF	rTailPositionX	= r18
+		.DEF	rTailPositionY	= r19
+		.DEF	rDirectionIndex	= r20
+
+	// Save the registers
+	push	rPositionX
+	push	rPositionY
+	push	rDirectionX
+	push	rDirectionY
+
+	// Load a pointer to the first asteroid instance
+	ldi		YL, LOW(ship)
+	ldi		YH, HIGH(ship)
+
+	// Load the data about the ship
+	ldd		rPositionX, Y + oShipPositionX
+	ldd		rPositionY, Y + oShipPositionY
+	ldd		rDirectionX, Y + oShipDirectionX
+	ldd		rDirectionY, Y + oShipDirectionY
+
+	// Draw the ship
+	setPixelr	rPositionX, rPositionY
+
+	// Get the index of the ship direction
+	mov		rArgument0L, rDirectionX
+	mov		rArgument1L, rDirectionY
+	call	direction8ToIndex
+	mov		rDirectionIndex, rReturnL
+
+	// Rotate the index for first tail wing
+	addi	rDirectionIndex, 3
+	andi	rDirectionIndex, 0b00000111			// Wrap index
+
+	// Save the index
+	push	rDirectionIndex
+
+	// Get the new offset
+	mov		rArgument0L, rDirectionIndex
+	call	indexToDirection8
+	mov		rDirectionX, rReturnL				// Direction now represents the tail direction offset
+	mov		rDirectionY, rReturnH
+
+	// Apply the offset and draw
+	mov		rTailPositionX, rPositionX			// Get the ship position
+	mov		rTailPositionY, rPositionY
+	add		rTailPositionX, rDirectionX			// Apply the offset for the first tail wing
+	add		rTailPositionY, rDirectionY
+	andi	rTailPositionX, 0b00000111			// Wrap position
+	andi	rTailPositionY, 0b00000111			
+
+	// Draw the first tail wing
+	setPixelr	rTailPositionX, rTailPositionY
+
+	// Restore the index
+	pop		rDirectionIndex
+
+	// Rotate the index for second tail wing
+	addi	rDirectionIndex, 2
+	andi	rDirectionIndex, 0b00000111			// Wrap index
+
+	// Get the new offset
+	mov		rArgument0L, rDirectionIndex
+	call	indexToDirection8
+	mov		rDirectionX, rReturnL
+	mov		rDirectionY, rReturnH
+
+	// Apply the offset and draw
+	mov		rTailPositionX, rPositionX			// Get the ship position
+	mov		rTailPositionY, rPositionY
+	add		rTailPositionX, rDirectionX			// Apply the offset for the second tail wing
+	add		rTailPositionY, rDirectionY
+	andi	rTailPositionX, 0b00000111			// Wrap position
+	andi	rTailPositionY, 0b00000111			
+
+	// Draw the first tail wing
+	setPixelr	rTailPositionX, rTailPositionY
+
+	// Restore the registers
+	pop		rDirectionY
+	pop		rDirectionX
+	pop		rPositionY
+	pop		rPositionX
+
+		.UNDEF	rDirectionX
+		.UNDEF	rDirectionY
+		.UNDEF	rPositionX
+		.UNDEF	rPositionY
+		.UNDEF	rTailPositionX
+		.UNDEF	rTailPositionY
+		.UNDEF	rDirectionIndex
+	ret
+/* drawShip end */
+
+
+/**
+ * Creates a new bullet in front of the ship, aimed in the direction the ship is pointing currently
+ */
+spawnBullet:
+		.DEF	rDirectionX		= r4
+		.DEF	rDirectionY		= r5
+		.DEF	rPositionX		= r16
+		.DEF	rPositionY		= r17
+
+	// Save registers that are being used
+	push	rDirectionX
+	push	rDirectionY
+	push	rPositionX
+	push	rPositionY
+
+		.DEF	rBulletCount	= r18
+
+	// Load the asteroid count
+	ldi		YL, LOW(bulletCount)
+	ldi		YH, HIGH(bulletCount)
+	ld		rBulletCount, Y
+
+	// If the maximum amount of bullets has already been reached, crash
+	cpi		rBulletCount, MAX_BULLETS
+	brlo	createBullet	
+	crash
+
+		.UNDEF	rBulletCount
+
+createBullet:
+	
+	// Load a pointer to the ship instance
+	ldi		YL, LOW(ship)
+	ldi		YH, HIGH(ship)
+	
+	// Load the data from the ship
+	ldd		rPositionX, Y + oShipPositionX
+	ldd		rPositionY, Y + oShipPositionY
+	ldd		rDirectionX, Y + oShipDirectionX
+	ldd		rDirectionY, Y + oShipDirectionY
+
+	// Offset the bullet by one pixel in the ship's direction
+	add		rPositionX, rDirectionX
+	add		rPositionY, rDirectionY
+	
+	// Wrap the position
+	andi	rPositionX, 0b00000111
+	andi	rPositionY, 0b00000111
+
+		.DEF	rBulletCount	= r18
+		.DEF	rTempi			= r19
+
+	// Load the bullet count
+	ldi		YL, LOW(bulletCount)
+	ldi		YH, HIGH(bulletCount)
+	ld		rBulletCount, Y
+
+	// Load a pointer to the first bullet instance
+	ldi		YL, LOW(bulletArray)
+	ldi		YH, HIGH(bulletArray)
+	
+	// Get the offset to the current bullet
+	ldi		rTempi, BULLET_DATA_SIZE
+	mul		rTempi, rBulletCount
+
+	// Add it to the pointer
+	ldi		rTempi, 0
+	add		YL, rMulResL
+	adc		YH, rTempi		// Add the carry if we get an overflow in the lower byte
+	
+	// Store the bullet data
+	std		Y + oBulletPositionX, rPositionX
+	std		Y + oBulletPositionY, rPositionY
+	std		Y + oBulletDirectionX, rDirectionX
+	std		Y + oBulletDirectionY, rDirectionY
+	ldi		rTempi, 0
+	std		Y + oBulletIsLit, rTempi
+		
+	// Increment the bullet count
+	inc		rBulletCount
+	ldi		YL, LOW(bulletCount)
+	ldi		YH, HIGH(bulletCount)
+	st		Y, rBulletCount
+
+		.UNDEF	rTempi
+		.UNDEF	rBulletCount
+
+	// Restore registers that are used
+	pop		rPositionY
+	pop		rPositionX
+	pop		rDirectionY
+	pop		rDirectionX
+		
+		.UNDEF	rPositionX
+		.UNDEF	rPositionY
+		.UNDEF	rDirectionX
+		.UNDEF	rDirectionY
+
+	ret
+/* createBullet end */
+
+
+
+/**
+ * Moves all the bullets in the direction they are pointing
+ */
+moveBullets:
+		.DEF	rPositionX		= r16
+		.DEF	rPositionY		= r17
+		.DEF	rDirectionX		= r18
+		.DEF	rDirectionY		= r19
+		.DEF	rIterator		= r20
+		.DEF	rBulletCount	= r21
+
+	// Save the registers
+	push	rPositionX
+	push	rPositionY
+
+	// Load the bullet count
+	ldi		YL, LOW(bulletCount)
+	ldi		YH, HIGH(bulletCount)
+	ld		rbulletCount, Y
+
+	// Load a pointer to the first bullet instance
+	ldi		YL, LOW(bulletArray)
+	ldi		YH, HIGH(bulletArray)
+
+	// Set the iterator to the first index
+	ldi		rIterator, 0
+
+	// If there aren't any bullets, don't do anything
+	cp		rIterator, rBulletCount
+	brlo	moveBulletLoop
+	jmp		moveBulletsEnd
+
+moveBulletLoop:
+
+	// Load the data from the asteroid
+	ldd		rPositionX, Y + oBulletPositionX
+	ldd		rPositionY, Y + oBulletPositionY
+	ldd		rDirectionX, Y + oBulletDirectionX
+	ldd		rDirectionY, Y + oBulletDirectionY
+
+	// Move the bullet in its current direction (but don't wrap)
+	add		rPositionX, rDirectionX
+	add		rPositionY, rDirectionY
+
+	// Store the updated position
+	std		Y + oBulletPositionX, rPositionX
+	std		Y + oBulletPositionY, rPositionY
+	
+	// Increment the bullet index
+	inc		rIterator
+	addiw	YL, YH, BULLET_DATA_SIZE			
+
+	cp		rIterator, rBulletCount
+	brlo	moveBulletLoop
+
+moveBulletsEnd:
+
+	// Restore the registers
+	pop		rPositionY
+	pop		rPositionX
+
+		.UNDEF	rBulletCount
+		.UNDEF	rIterator
+		.UNDEF	rPositionX
+		.UNDEF	rPositionY
+		.UNDEF	rDirectionX
+		.UNDEF	rDirectionY
+
+	ret
+/* moveBullets end */
+
+
+
+
+/**
+ * Display all the bullets that currently exist if they are currently lit
+ */
+drawBullets:
+		.DEF	rBulletCount	= r16
+		.DEF	rIterator		= r17
+		.DEF	rPositionX		= r18
+		.DEF	rPositionY		= r19
+		.DEF	rIsLit			= r20
+
+	// Save the registers
+	push	rBulletCount
+	push	rIterator
+
+	// Load the bullet count
+	ldi		YL, LOW(bulletCount)
+	ldi		YH, HIGH(bulletCount)
+	ld		rBulletCount, Y
+
+	// Load a pointer to the first bullet instance
+	ldi		YL, LOW(bulletArray)
+	ldi		YH, HIGH(bulletArray)
+
+	// Set the iterator to the first index
+	ldi		rIterator, 0
+
+	cp		rIterator, rBulletCount
+	brlo	drawBulletLoop
+	
+	// If there aren't any bullets, don't do anything
+	jmp		drawBulletsEnd
+
+drawBulletLoop:
+
+	// Load the position of the bullet
+	ldd		rPositionX, Y + oBulletPositionX
+	ldd		rPositionY, Y + oBulletPositionY
+	ldd		rIsLit, Y + oBulletIsLit
+
+	// If the bullet isn't lit, skip drawing it
+	cpi		rIsLit, 0
+	breq	skipDrawBullet
+
+		.DEF	rTempi = r21
+
+	//	TODO Remove this. It shouldn't be necessary. Positions shouldn't be out outside the screen!
+	andi	rPositionX, 0b00000111		// Wrap position
+	andi	rPositionY, 0b00000111
+
+		.UNDEF	rTempi
+
+	// Draw the bullet
+	push	YL
+	push	YH
+	setPixelr	rPositionX, rPositionY
+	pop		YH
+	pop		YL
+
+skipDrawBullet:
+
+	// Increment the bullet index
+	inc		rIterator
+	addiw	YL, YH, BULLET_DATA_SIZE
+
+	// If there are still bullets left to draw, run another iteration
+	cp		rIterator, rBulletCount
+	brlo	drawBulletLoop
+
+drawBulletsEnd:
+
+	// Restore the registers
+	pop		rIterator
+	pop		rBulletCount
+
+		.UNDEF	rBulletCount
+		.UNDEF	rIterator
+		.UNDEF	rPositionX
+		.UNDEF	rPositionY
+		.UNDEF	rIsLit
+	ret
+/* drawBullets end */
+
+
+
+/**
+ * Toggles whether or not bullets are visible
+ */
+flashBullets:
+		.DEF	rBulletCount	= r18
+		.DEF	rIterator		= r19
+		.DEF	rIsLit			= r20
+
+	// Load the bullet count
+	ldi		YL, LOW(bulletCount)
+	ldi		YH, HIGH(bulletCount)
+	ld		rBulletCount, Y
+
+	// Load a pointer to the first bullet instance
+	ldi		YL, LOW(bulletArray)
+	ldi		YH, HIGH(bulletArray)
+
+	// Set the iterator to the first index
+	ldi		rIterator, 0
+
+	cp		rIterator, rBulletCount
+	brlo	flashBulletLoop
+	
+	// If there aren't any bullets, don't do anything
+	jmp		flashBulletsEnd
+
+flashBulletLoop:
+
+	// Load the visibility of the bullet
+	ldd		rIsLit, Y + oBulletIsLit
+	
+	// Toggle the visibility
+	com		rIsLit
+	andi	rIsLit, 0x1
+
+	// Store the visibility back
+	std		Y + oBulletIsLit, rIsLit
+
+	// Increment the bullet index
+	inc		rIterator
+	addiw	YL, YH, BULLET_DATA_SIZE
+
+	// If there are still bullets left to flash, run another iteration
+	cp		rIterator, rBulletCount
+	brlo	flashBulletLoop
+
+flashBulletsEnd:
+
+		.UNDEF	rBulletCount
+		.UNDEF	rIterator
+		.UNDEF	rIsLit
+	ret
+/* flashBullets end */
+
+
+
+
+/**
+ * Removes a bullet from the list of bullets currently in the game
+ * @param rArgument0L - the index of the bullet to remove
+ */
+removeBullet:
+		.DEF	rPositionX		= r2
+		.DEF	rPositionY		= r3
+		.DEF	rDirectionX		= r4
+		.DEF	rDirectionY		= r5
+		.DEF	rBulletCount	= r18
 		.DEF	rTempi			= r19
 		.DEF	rRemoveIndex	= r20
 
@@ -2721,52 +3081,52 @@ removeAsteroid:
 	// Get the argument
 	mov		rRemoveIndex, rArgument0L
 
-	// Load the asteroid count
-	ldi		YL, LOW(asteroidCount)
-	ldi		YH, HIGH(asteroidCount)
-	ld		rAsteroidCount, Y
+	// Load the bullet count
+	ldi		YL, LOW(bulletCount)
+	ldi		YH, HIGH(bulletCount)
+	ld		rBulletCount, Y
 
 	// If the removed index is less than 0, crash
 	cpi		rRemoveIndex, 0
-	brlt	invalidAsteroidIndex	
+	brlt	invalidBulletIndex	
 	
-	// If the removed index is higher than the highest index (asteroidCount - 1), crash
-	cp		rRemoveIndex, rAsteroidCount
-	brge	invalidAsteroidIndex
+	// If the removed index is higher than the highest index (bulletCount - 1), crash
+	cp		rRemoveIndex, rBulletCount
+	brge	invalidBulletIndex
 
-	jmp		doRemoveAsteroid
+	jmp		doRemoveBullet
 
-invalidAsteroidIndex:
+invalidBulletIndex:
 	terminateErrori	drawTemplarMatrix
 
-doRemoveAsteroid:
+doRemoveBullet:
 
-	// Load a pointer to the first asteroid instance
-	ldi		YL, LOW(asteroidArray)
-	ldi		YH, HIGH(asteroidArray)
+	// Load a pointer to the first bullet instance
+	ldi		YL, LOW(bulletArray)
+	ldi		YH, HIGH(bulletArray)
 	
-	// Get the offset to the last asteroid
-	ldi		rTempi, ASTEROID_DATA_SIZE
-	mul		rTempi, rAsteroidCount
-	add		rMulResL, rTempi	// Go one step back, since the index = count - 1
+	// Get the offset to the last bullet
+	ldi		rTempi, BULLET_DATA_SIZE
+	mul		rTempi, rBulletCount
+	sub		rMulResL, rTempi	// Go one step back, since the index = count - 1
 
 	// Add it to the pointer
 	ldi		rTempi, 0
 	add		YL, rMulResL
 	adc		YH, rTempi		// Add the carry if we get an overflow in the lower byte
 	
-	// Get the data from the last asteroid instance
-	ldd		rPositionX, Y + oAsteroidPositionX
-	ldd		rPositionY, Y + oAsteroidPositionY
-	ldd		rDirectionX, Y + oAsteroidDirectionX
-	ldd		rDirectionY, Y + oAsteroidDirectionY
+	// Get the data from the last bullet instance
+	ldd		rPositionX, Y + oBulletPositionX
+	ldd		rPositionY, Y + oBulletPositionY
+	ldd		rDirectionX, Y + oBulletDirectionX
+	ldd		rDirectionY, Y + oBulletDirectionY
 	
-	// Load a pointer to the first asteroid instance
-	ldi		YL, LOW(asteroidArray)
-	ldi		YH, HIGH(asteroidArray)
+	// Load a pointer to the first bullet instance
+	ldi		YL, LOW(bulletArray)
+	ldi		YH, HIGH(bulletArray)
 	
-	// Get the offset to the removed asteroid
-	ldi		rTempi, ASTEROID_DATA_SIZE
+	// Get the offset to the removed bullet
+	ldi		rTempi, BULLET_DATA_SIZE
 	mul		rTempi, rRemoveIndex
 
 	// Add it to the pointer
@@ -2775,16 +3135,16 @@ doRemoveAsteroid:
 	adc		YH, rTempi		// Add the carry if we get an overflow in the lower byte
 
 	// Move the data from the last index to the removed index
-	std		Y + oAsteroidPositionX, rPositionX
-	std		Y + oAsteroidPositionY, rPositionY
-	std		Y + oAsteroidDirectionX, rDirectionX
-	std		Y + oAsteroidDirectionY, rDirectionY
+	std		Y + oBulletPositionX, rPositionX
+	std		Y + oBulletPositionY, rPositionY
+	std		Y + oBulletDirectionX, rDirectionX
+	std		Y + oBulletDirectionY, rDirectionY
 
-	// Decrement the asteroid count
-	dec		rAsteroidCount
-	ldi		YL, LOW(asteroidCount)
-	ldi		YH, HIGH(asteroidCount)
-	st		Y, rAsteroidCount
+	// Decrement the bullet count
+	dec		rBulletCount
+	ldi		YL, LOW(bulletCount)
+	ldi		YH, HIGH(bulletCount)
+	st		Y, rBulletCount
 
 	// Restore registers that are used
 	pop		rDirectionY
@@ -2796,12 +3156,107 @@ doRemoveAsteroid:
 		.UNDEF	rPositionY
 		.UNDEF	rDirectionX
 		.UNDEF	rDirectionY
-		.UNDEF	rAsteroidCount
+		.UNDEF	rBulletCount
 		.UNDEF	rTempi	
 		.UNDEF	rRemoveIndex
 
 	ret
-/* removeAsteroid end */
+/* removeBullet end */
+
+
+
+/**
+ * Removes all bullets that have ended up outside the screen
+ */
+removeDeadBullets:
+		.DEF	rIterator		= r16
+		.DEF	rBulletCount	= r17
+		.DEF	rPositionX		= r18
+		.DEF	rPositionY		= r19
+		.DEF	rTempi			= r20
+
+	// Save the registers that are used
+	push	rIterator
+	push	rBulletCount
+
+	// Load the bullet count
+	ldi		YL, LOW(bulletCount)
+	ldi		YH, HIGH(bulletCount)
+	ld		rBulletCount, Y
+
+	// Load a pointer to the first bullet instance
+	ldi		YL, LOW(bulletArray)
+	ldi		YH, HIGH(bulletArray)
+	
+	// Get the offset to the last bullet
+	ldi		rTempi, BULLET_DATA_SIZE
+	mul		rTempi, rBulletCount
+	sub		rMulResL, rTempi	// Go one step back, since the index = count - 1
+
+	// Add it to the pointer
+	ldi		rTempi, 0
+	add		YL, rMulResL
+	adc		YH, rTempi		// Add the carry if we get an overflow in the lower byte
+
+	// Set the iterator to the last index
+	mov		rIterator, rBulletCount
+	dec		rIterator
+
+	// If there aren't any bullets, don't do anything
+	cpi		rBulletCount, 1
+	brlt	removeDeadBulletLoop
+	jmp		removeDeadBulletEnd
+
+removeDeadBulletLoop:
+
+	// Load the position from the bullet
+	ldd		rPositionX, Y + oBulletPositionX
+	ldd		rPositionY, Y + oBulletPositionY
+
+	// Remove the position bits. If there has been an overflow, the result is not zero
+	andi	rPositionX, 0b11111000
+	andi	rPositionY, 0b11111000
+
+	// Check if the position is outside the screen by looking at the overflow
+	cpi		rPositionX, 0
+	breq	skipRemoveBullet
+	cpi		rPositionY, 0
+	breq	skipRemoveBullet
+
+	// If the bullet is outside the screen, remove it
+	push	YL
+	push	YH
+	mov		rArgument0L, rIterator
+	call	removeBullet
+	pop		YH
+	pop		YL
+
+skipRemoveBullet:
+
+	// Decrement the bullet index and the pointer
+	dec		rIterator
+	subiw	YL, YH, BULLET_DATA_SIZE
+
+	// If the iterator isn't yet below zero, run another iteration
+	cpi		rIterator, 0
+	brge	removeDeadBulletLoop
+
+removeDeadBulletEnd:
+
+	// Restore registers
+	pop		rBulletCount
+	pop		rIterator
+
+		.UNDEF	rTempi
+		.UNDEF	rBulletCount
+		.UNDEF	rIterator
+		.UNDEF	rPositionX
+		.UNDEF	rPositionY
+
+	ret
+/* removeDeadBullets end */
+
+
 
 
 /**
@@ -2876,7 +3331,7 @@ notAxisAligned:
 	// Get the direction as a vector
 	mov		rArgument0L, rDirectionIndex
 	push	rAxis							// Save the axis register before the call
-	call	valueToDirection8
+	call	indexToDirection8
 	pop		rAxis							// Restore the axis register
 	mov		rDirectionX, rReturnL
 	mov		rDirectionY, rReturnH
@@ -2980,87 +3435,260 @@ storeAsteroidData:
 
 
 
-
 /**
- * Returns a direction vector based on a 3 bit value. Starting with 0 straight up, the directions move
- * clockwise byt 45 degrees with each index.
- * @param rArgumen0L - 3 bit value used as direction index
- * @return rReturnL - Signed X direction (-1, 0, 1)
- * @return rReturnH - Signed Y direction (-1, 0, 1)
+ * Moves all the asteroids in the direction they are pointing
  */
-valueToDirection8:
-		.DEF	rDirectionIndex = r18
-		.DEF	rDirectionX		= r19
-		.DEF	rDirectionY		= r20
+moveAsteroids:
+		.DEF	rPositionX		= r16
+		.DEF	rPositionY		= r17
+		.DEF	rDirectionX		= r18
+		.DEF	rDirectionY		= r19
+		.DEF	rIterator		= r20
+		.DEF	rAsteroidCount	= r21
 
-	// Load the direction index value and mask out the lowest 3 bits
-	mov		rDirectionIndex, rArgument0L
-	andi	rDirectionIndex, 0b00000111
+	// Save the registers
+	push	rPositionX
+	push	rPositionY
+
+	// Load the asteroid count
+	ldi		YL, LOW(asteroidCount)
+	ldi		YH, HIGH(asteroidCount)
+	ld		rAsteroidCount, Y
+
+	// Load a pointer to the first asteroid instance
+	ldi		YL, LOW(asteroidArray)
+	ldi		YH, HIGH(asteroidArray)
+
+	// Set the iterator to the first index
+	ldi		rIterator, 0
+
+	// If there aren't any asteroids, don't do anything
+	cp		rIterator, rAsteroidCount
+	brlo	moveAsteroidLoop
+	jmp		moveAsteroidsEnd
+
+moveAsteroidLoop:
+
+	// Load the data from the asteroid
+	ldd		rPositionX, Y + oAsteroidPositionX
+	ldd		rPositionY, Y + oAsteroidPositionY
+	ldd		rDirectionX, Y + oAsteroidDirectionX
+	ldd		rDirectionY, Y + oAsteroidDirectionY
+
+	// Move the asteroid in its current direction
+	add		rPositionX, rDirectionX
+	add		rPositionY, rDirectionY
+
+	// Wrap the position
+	andi	rPositionX, 0b00000111
+	andi	rPositionY, 0b00000111
+
+	// Store the updated position
+	std		Y + oAsteroidPositionX, rPositionX
+	std		Y + oAsteroidPositionY, rPositionY
 	
-	// Jump to the correct index
-	cpi		rDirectionIndex, 0
-	breq	directionIndex0
-	cpi		rDirectionIndex, 1
-	breq	directionIndex1
-	cpi		rDirectionIndex, 2
-	breq	directionIndex2
-	cpi		rDirectionIndex, 3
-	breq	directionIndex3
-	cpi		rDirectionIndex, 4
-	breq	directionIndex4
-	cpi		rDirectionIndex, 5
-	breq	directionIndex5
-	cpi		rDirectionIndex, 6
-	breq	directionIndex6
-	cpi		rDirectionIndex, 7
-	breq	directionIndex7
+	// Increment the asteroid index
+	inc		rIterator
+	addiw	YL, YH, ASTEROID_DATA_SIZE			
 
-	// Set the direction
-directionIndex0:
-	ldi		rDirectionX, 0
-	ldi		rDirectionY, -1
-	jmp		valueToDirection8End
-directionIndex1:
-	ldi		rDirectionX, 1
-	ldi		rDirectionY, -1
-	jmp		valueToDirection8End
-directionIndex2:
-	ldi		rDirectionX, 1
-	ldi		rDirectionY, 0
-	jmp		valueToDirection8End
-directionIndex3:
-	ldi		rDirectionX, 1
-	ldi		rDirectionY, 1
-	jmp		valueToDirection8End
-directionIndex4:
-	ldi		rDirectionX, 0
-	ldi		rDirectionY, 1
-	jmp		valueToDirection8End
-directionIndex5:
-	ldi		rDirectionX, -1
-	ldi		rDirectionY, 1
-	jmp		valueToDirection8End
-directionIndex6:
-	ldi		rDirectionX, -1
-	ldi		rDirectionY, 0
-	jmp		valueToDirection8End
-directionIndex7:
-	ldi		rDirectionX, -1
-	ldi		rDirectionY, -1
-	jmp		valueToDirection8End
+	cp		rIterator, rAsteroidCount
+	brlo	moveAsteroidLoop
 
-valueToDirection8End:
-	
-	// Set the return values
-	mov		rReturnL, rDirectionX
-	mov		rReturnH, rDirectionY
-		
+moveAsteroidsEnd:
+
+	// Restore the registers
+	pop		rPositionY
+	pop		rPositionX
+
+		.UNDEF	rAsteroidCount
+		.UNDEF	rIterator
+		.UNDEF	rPositionX
+		.UNDEF	rPositionY
 		.UNDEF	rDirectionX
 		.UNDEF	rDirectionY
-		.UNDEF	rDirectionIndex
+	ret
+/* moveAsteroid end */
+
+
+
+/**
+ * Display all the asteroids that currently exist
+ */
+drawAsteroids:
+		.DEF	rPositionX		= r19
+		.DEF	rPositionY		= r18
+		.DEF	rAsteroidCount	= r4
+		.DEF	rIterator		= r16
+
+	// Save the registers
+	push	rAsteroidCount
+	push	rIterator
+
+	// Load the asteroid count
+	ldi		YL, LOW(asteroidCount)
+	ldi		YH, HIGH(asteroidCount)
+	ld		rAsteroidCount, Y
+
+	// Load a pointer to the first asteroid instance
+	ldi		YL, LOW(asteroidArray)
+	ldi		YH, HIGH(asteroidArray)
+
+	// Set the iterator to the first index
+	ldi		rIterator, 0
+
+	cp		rIterator, rAsteroidCount
+	brlo	drawAsteroidLoop
+	
+	// If there aren't any asteroids, don't do anything
+	jmp		drawAsteroidsEnd
+
+drawAsteroidLoop:
+
+	// Load the position of the asteroid
+	ldd		rPositionX, Y + oAsteroidPositionX
+	ldd		rPositionY, Y + oAsteroidPositionY
+
+		.DEF	rTempi = r20
+
+	//	TODO Remove this. It shouldn't be necessary. Positions shouldn't be out outside the screen!
+	andi	rPositionX, 0b00000111
+	andi	rPositionY, 0b00000111
+
+		.UNDEF	rTempi
+
+	// Draw the asteroid
+	push	YL
+	push	YH
+	setPixelr	rPositionX, rPositionY
+	pop		YH
+	pop		YL
+
+	// Increment the asteroid index
+	inc		rIterator
+	addiw	YL, YH, ASTEROID_DATA_SIZE
+
+	cp		rIterator, rAsteroidCount
+	brlo	drawAsteroidLoop
+
+drawAsteroidsEnd:
+
+	// Restore the registers
+	pop		rIterator
+	pop		rAsteroidCount
+
+		.UNDEF	rAsteroidCount
+		.UNDEF	rIterator
+		.UNDEF	rPositionX
+		.UNDEF	rPositionY
+	ret
+/* drawAsteroids end */
+
+
+
+
+/**
+ * Removes an asteroid from the list of asteroids currently in the game
+ * @param rArgument0L - the index of the asteroid to remove
+ */
+removeAsteroid:
+		.DEF	rPositionX		= r2
+		.DEF	rPositionY		= r3
+		.DEF	rDirectionX		= r4
+		.DEF	rDirectionY		= r5
+		.DEF	rAsteroidCount	= r18
+		.DEF	rTempi			= r19
+		.DEF	rRemoveIndex	= r20
+
+	// Save the registers that are used
+	push	rPositionX
+	push	rPositionY
+	push	rDirectionX
+	push	rDirectionY
+
+	// Get the argument
+	mov		rRemoveIndex, rArgument0L
+
+	// Load the asteroid count
+	ldi		YL, LOW(asteroidCount)
+	ldi		YH, HIGH(asteroidCount)
+	ld		rAsteroidCount, Y
+
+	// If the removed index is less than 0, crash
+	cpi		rRemoveIndex, 0
+	brlt	invalidAsteroidIndex	
+	
+	// If the removed index is higher than the highest index (asteroidCount - 1), crash
+	cp		rRemoveIndex, rAsteroidCount
+	brge	invalidAsteroidIndex
+
+	jmp		doRemoveAsteroid
+
+invalidAsteroidIndex:
+	terminateErrori	drawTemplarMatrix
+
+doRemoveAsteroid:
+
+	// Load a pointer to the first asteroid instance
+	ldi		YL, LOW(asteroidArray)
+	ldi		YH, HIGH(asteroidArray)
+	
+	// Get the offset to the last asteroid
+	ldi		rTempi, ASTEROID_DATA_SIZE
+	mul		rTempi, rAsteroidCount
+	sub		rMulResL, rTempi	// Go one step back, since the index = count - 1
+
+	// Add it to the pointer
+	ldi		rTempi, 0
+	add		YL, rMulResL
+	adc		YH, rTempi		// Add the carry if we get an overflow in the lower byte
+	
+	// Get the data from the last asteroid instance
+	ldd		rPositionX, Y + oAsteroidPositionX
+	ldd		rPositionY, Y + oAsteroidPositionY
+	ldd		rDirectionX, Y + oAsteroidDirectionX
+	ldd		rDirectionY, Y + oAsteroidDirectionY
+	
+	// Load a pointer to the first asteroid instance
+	ldi		YL, LOW(asteroidArray)
+	ldi		YH, HIGH(asteroidArray)
+	
+	// Get the offset to the removed asteroid
+	ldi		rTempi, ASTEROID_DATA_SIZE
+	mul		rTempi, rRemoveIndex
+
+	// Add it to the pointer
+	ldi		rTempi, 0
+	add		YL, rMulResL
+	adc		YH, rTempi		// Add the carry if we get an overflow in the lower byte
+
+	// Move the data from the last index to the removed index
+	std		Y + oAsteroidPositionX, rPositionX
+	std		Y + oAsteroidPositionY, rPositionY
+	std		Y + oAsteroidDirectionX, rDirectionX
+	std		Y + oAsteroidDirectionY, rDirectionY
+
+	// Decrement the asteroid count
+	dec		rAsteroidCount
+	ldi		YL, LOW(asteroidCount)
+	ldi		YH, HIGH(asteroidCount)
+	st		Y, rAsteroidCount
+
+	// Restore registers that are used
+	pop		rDirectionY
+	pop		rDirectionX
+	pop		rPositionY
+	pop		rPositionX
+
+		.UNDEF	rPositionX
+		.UNDEF	rPositionY
+		.UNDEF	rDirectionX
+		.UNDEF	rDirectionY
+		.UNDEF	rAsteroidCount
+		.UNDEF	rTempi	
+		.UNDEF	rRemoveIndex
 
 	ret
-/* valueToDirection8 end */
+/* removeAsteroid end */
 
 
 /******************************************************************************************
@@ -4797,6 +5425,191 @@ notCorner:
 
 	ret
 /* joystickValuesToDirection */
+
+
+
+/**
+ * Returns a direction vector based on a 3 bit value. Starting with 0 straight up, the directions move
+ * clockwise byt 45 degrees with each index.
+ * @param rArgumen0L - 3 bit value used as direction index
+ * @return rReturnL - Signed X direction (-1, 0, 1)
+ * @return rReturnH - Signed Y direction (-1, 0, 1)
+ */
+indexToDirection8:
+		.DEF	rDirectionIndex = r18
+		.DEF	rDirectionX		= r19
+		.DEF	rDirectionY		= r20
+
+	// Load the direction index value and mask out the lowest 3 bits
+	mov		rDirectionIndex, rArgument0L
+	andi	rDirectionIndex, 0b00000111
+	
+	// Jump to the correct index
+	cpi		rDirectionIndex, 0
+	breq	directionIndex0
+	cpi		rDirectionIndex, 1
+	breq	directionIndex1
+	cpi		rDirectionIndex, 2
+	breq	directionIndex2
+	cpi		rDirectionIndex, 3
+	breq	directionIndex3
+	cpi		rDirectionIndex, 4
+	breq	directionIndex4
+	cpi		rDirectionIndex, 5
+	breq	directionIndex5
+	cpi		rDirectionIndex, 6
+	breq	directionIndex6
+	cpi		rDirectionIndex, 7
+	breq	directionIndex7
+
+	// Set the direction
+directionIndex0:
+	ldi		rDirectionX, 0
+	ldi		rDirectionY, -1
+	jmp		indexToDirection8End
+directionIndex1:
+	ldi		rDirectionX, 1
+	ldi		rDirectionY, -1
+	jmp		indexToDirection8End
+directionIndex2:
+	ldi		rDirectionX, 1
+	ldi		rDirectionY, 0
+	jmp		indexToDirection8End
+directionIndex3:
+	ldi		rDirectionX, 1
+	ldi		rDirectionY, 1
+	jmp		indexToDirection8End
+directionIndex4:
+	ldi		rDirectionX, 0
+	ldi		rDirectionY, 1
+	jmp		indexToDirection8End
+directionIndex5:
+	ldi		rDirectionX, -1
+	ldi		rDirectionY, 1
+	jmp		indexToDirection8End
+directionIndex6:
+	ldi		rDirectionX, -1
+	ldi		rDirectionY, 0
+	jmp		indexToDirection8End
+directionIndex7:
+	ldi		rDirectionX, -1
+	ldi		rDirectionY, -1
+	jmp		indexToDirection8End
+
+indexToDirection8End:
+	
+	// Set the return values
+	mov		rReturnL, rDirectionX
+	mov		rReturnH, rDirectionY
+		
+		.UNDEF	rDirectionX
+		.UNDEF	rDirectionY
+		.UNDEF	rDirectionIndex
+
+	ret
+/* indexToDirection8 end */
+
+
+
+/**
+ * Return the 3 bit index representing a specific direction offset. If the offset isn't a valid direction
+ * an error is raised.
+ * @param rArgumen0L - Signed X direction (-1, 0, 1)
+ * @param rArgumen1L - Signed Y direction (-1, 0, 1)
+ * @return rReturnL - 3 bit value used as direction index
+ */
+direction8ToIndex:
+		.DEF	rDirectionIndex = r18
+		.DEF	rDirectionX		= r19
+		.DEF	rDirectionY		= r20
+
+	// Copy the arguments
+	mov		rDirectionX, rArgument0L
+	mov		rDirectionY, rArgument1L
+	
+	// Jump to the correct index
+	cpi		rDirectionX, -1
+	breq	directionLeft
+	cpi		rDirectionX, 0
+	breq	directionMiddle
+	cpi		rDirectionX, 1
+	breq	directionRight
+
+	// If it's neither -1, 0 or 1, it's an invalid offset
+	jmp		invalidDirection8
+
+directionLeft:
+	cpi		rDirectionY, -1
+	breq	returnDirectionIndex7
+	cpi		rDirectionY, 0
+	breq	returnDirectionIndex6
+	cpi		rDirectionY, 1
+	breq	returnDirectionIndex5
+
+	// If it's neither -1, 0 or 1, it's an invalid offset
+	jmp		invalidDirection8
+
+directionMiddle:
+	cpi		rDirectionY, -1
+	breq	returnDirectionIndex0
+	cpi		rDirectionY, 1
+	breq	returnDirectionIndex4
+
+	// If it's neither -1 or 1, it's an invalid offset
+	jmp		invalidDirection8
+
+directionRight:
+	cpi		rDirectionY, -1
+	breq	returnDirectionIndex1
+	cpi		rDirectionY, 0
+	breq	returnDirectionIndex2
+	cpi		rDirectionY, 1
+	breq	returnDirectionIndex3
+
+	// If it's neither -1, 0 or 1, it's an invalid offset
+	jmp		invalidDirection8
+
+	// If there isn't a valid direction, crash
+invalidDirection8:
+	crash
+
+	// Set the direction
+returnDirectionIndex0:
+	ldi		rDirectionIndex, 0
+	jmp		direction8ToIndexEnd
+returnDirectionIndex1:
+	ldi		rDirectionIndex, 1
+	jmp		direction8ToIndexEnd
+returnDirectionIndex2:
+	ldi		rDirectionIndex, 2
+	jmp		direction8ToIndexEnd
+returnDirectionIndex3:
+	ldi		rDirectionIndex, 3
+	jmp		direction8ToIndexEnd
+returnDirectionIndex4:
+	ldi		rDirectionIndex, 4
+	jmp		direction8ToIndexEnd
+returnDirectionIndex5:
+	ldi		rDirectionIndex, 5
+	jmp		direction8ToIndexEnd
+returnDirectionIndex6:
+	ldi		rDirectionIndex, 6
+	jmp		direction8ToIndexEnd
+returnDirectionIndex7:
+	ldi		rDirectionIndex, 7
+	jmp		direction8ToIndexEnd
+
+direction8ToIndexEnd:
+	
+	// Set the return values
+	mov		rReturnL, rDirectionIndex
+		
+		.UNDEF	rDirectionX
+		.UNDEF	rDirectionY
+		.UNDEF	rDirectionIndex
+
+	ret
+/* direction8ToIndex end */
 
 
 
