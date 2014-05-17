@@ -2491,25 +2491,79 @@ asteroidsGame:
 	call	initializeAsteroidsGame
 
 asteroidsGameLoop:
-	//jmp		asteroidsGameRender
 
+	// Check if it's time for an asteroid update
 	checkTimeri asteroidTimer
 	cpi		rReturnL, 1
 	brne	skipAsteroidUpdate
+
+	// Move asteroids
 	call	moveAsteroids
 
 skipAsteroidUpdate:
+
+	// Check if it's time to spawn a new asteroid
 	checkTimeri spawnTimer
 	cpi		rReturnL, 1
-	brne	skipSpawn
+	brne	skipAsteroidSpawn
+	
+	// Spawn a new asteroid
 	call	spawnAsteroid
 
-skipSpawn:
+skipAsteroidSpawn:
 
-asteroidsGameRender:
+	// Check if it's time to update the ship
+	checkTimeri updateTimer
+	cpi		rReturnL, 1
+	brne	skipShipUpdate
+	
+	// Move the ship and check for collisions
+	call	moveShip
+	// Check collision between ship and asteroids
+
+skipShipUpdate:
+
+	// Check if it's time to update the bullets
+	checkTimeri bulletTimer
+	cpi		rReturnL, 1
+	brne	skipBulletUpdate
+	
+	// Move the bullets and check for collisions
+	call	moveBullets
+	// Check collision between bullets and asteroids asteroids
+
+skipBulletUpdate:
+
+	// Check if it's time to flash the bullets
+	checkTimeri flashTimer
+	cpi		rReturnL, 1
+	brne	skipBulletFlash
+	
+	// Toggle the bullets' visibilities
+	call	flashBullets
+
+skipBulletFlash:
+	
+	// Check if it's time to shoot
+	checkTimeri shootTimer
+	cpi		rReturnL, 1
+	brne	skipShoot
+	
+	// Shoot a new bullet
+	call	createBullet
+
+skipShoot:
+
+	// Render the current frame
 	call	clearMatrix
+	
 	call	drawAsteroids
+	call	drawShip
+	call	drawBullets
+	
 	call	render
+
+	// Run another iteration
 	jmp		asteroidsGameLoop
 	
 	ret
@@ -3255,7 +3309,6 @@ removeDeadBulletEnd:
 
 	ret
 /* removeDeadBullets end */
-
 
 
 
