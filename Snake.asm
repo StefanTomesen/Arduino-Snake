@@ -183,8 +183,8 @@
 
 	/* Tetris Game */
 	.EQU	TETRIS_UPDATE_TIME			= 64
-	.EQU	TETRIS_START_UPDATE_TIME	= TETRIS_UPDATE_TIME
-	.EQU	TETRIS_END_UPDATE_TIME		= TETRIS_UPDATE_TIME
+	.EQU	TETRIS_START_UPDATE_TIME	= TETRIS_UPDATE_TIME / 2
+	.EQU	TETRIS_END_UPDATE_TIME		= TETRIS_UPDATE_TIME / 6
 	.EQU	TETRIS_SPEED_UPDATE_TIME	= TETRIS_UPDATE_TIME / 4
 	.EQU	TETRIS_JOYSTICK_UPDATE_TIME	= 16
 
@@ -1504,13 +1504,16 @@ tetrisGame:
 	ldi		rArgument0L, TIMER2_PRE_1024
 	call	initializeHardwareTimer2
 
+	call	initializeTetrisBlocks
+
+	// Run start animation, then clear
 	call	tetrisStartAnimation
+	call	clearMatrix
 
 	initializeTimeri updateTimer, TETRIS_UPDATE_TIME
 	initializeTimeri renderTimer, TETRIS_JOYSTICK_UPDATE_TIME
 
 	call	initializeTetris
-
 	call	tetrisNextBlock
 
 	// Draw the next block
@@ -1541,26 +1544,18 @@ tetrisSkipUpdate:
 
 
 /**
- * initializeTetris
+ * initializeTetrisBlocks
  */
-initializeTetris:
-		.DEF	rZero			= r18
-		.DEF	rBlockX			= r19
-		.DEF	rBlockY			= r20
+initializeTetrisBlocks:
+		.DEF	rBlockX			= r18
+		.DEF	rBlockY			= r19
 		
-	ldi		YL, LOW(tetris)
-	ldi		YH, HIGH(tetris)
-	ldi		rZero, 0
-	std		Y + oTetrisBlockType, rZero
-	std		Y + oTetrisBlockRotation, rZero
-	std		Y + oTetrisBlockX, rZero
-	std		Y + oTetrisBlockY, rZero
-
+	// INTERNAL MACRO, ONLY TO BE USED HERE
 	.MACRO store 
-	ldi		rBlockX, @0
-	ldi		rBlockY, @1
-	st		X+, rBlockX
-	st		Y+, rBlockY	
+		ldi		rBlockX, @0
+		ldi		rBlockY, @1
+		st		X+, rBlockX
+		st		Y+, rBlockY	
 	.ENDMACRO
 
 	// Load block x/y array
@@ -1569,6 +1564,7 @@ initializeTetris:
 	ldi		YL, LOW(tetrisBlockArrayY)
 	ldi		YH, HIGH(tetrisBlockArrayY)
 
+	// Skip null block
 	adiw	X, 4 * 4
 	adiw	Y, 4 * 4
 
@@ -1726,9 +1722,29 @@ initializeTetris:
 	store	2, 1
 	store	2, 2
 
-		.UNDEF	rZero
 		.UNDEF	rBlockX
 		.UNDEF	rBlockY
+
+	ret
+/* initializeTetrisBlocks end */
+
+
+
+/**
+ * initializeTetris
+ */
+initializeTetris:
+		.DEF	rZero			= r18
+
+	ldi		YL, LOW(tetris)
+	ldi		YH, HIGH(tetris)
+	ldi		rZero, 0
+	std		Y + oTetrisBlockType, rZero
+	std		Y + oTetrisBlockRotation, rZero
+	std		Y + oTetrisBlockX, rZero
+	std		Y + oTetrisBlockY, rZero
+
+		.UNDEF	rZero
 
 	ret
 /* initializeTetris end */
@@ -1739,23 +1755,49 @@ initializeTetris:
  * tetrisStartAnimation
  */
 tetrisStartAnimation:
-		.DEF rIterator = r18
+		.DEF	rIterator = r16
+	push	rIterator
 
 	initializeTimeri updateTimer, TETRIS_START_UPDATE_TIME
+	
+	call	clearMatrix
 
 	// there are 7 differend Blocks
 	ldi		rIterator, 7
 
-tetrisStartLoop:
-	push	rIterator
-	call	clearMatrix
-	call	drawTetrisBlock
-	pop		rIterator
+		.DEF	rBlockX	= r18
+		.DEF	rBlockY	= r19
+		.DEF	rZero	= r20
 
-	// if shown all blocks, end
-	dec		rIterator
+	ldi		YL, LOW(tetris)
+	ldi		YH, HIGH(tetris)
+	ldi		rZero, 0
+	ldi		rBlockX, 3
+	ldi		rBlockY, 3
+	std		Y + oTetrisBlockType, rIterator
+	std		Y + oTetrisBlockRotation, rZero
+	std		Y + oTetrisBlockX, rBlockX
+	std		Y + oTetrisBlockY, rBlockY
+
+		.UNDEF	rBlockX
+		.UNDEF	rBlockY
+		.UNDEF	rZero
+
+tetrisStartLoop:
+
+	// If shown all blocks (except 'null' block), end loop
 	cpi		rIterator, 0
 	breq	tetrisStartReturn
+
+	// Clear and draw block
+	call	clearMatrix
+	call	drawTetrisBlock
+
+	// Prepare for next block type
+	ldi		YL, LOW(tetris)
+	ldi		YH, HIGH(tetris)
+	dec		rIterator
+	std		Y + oTetrisBlockType, rIterator
 
 tetrisStartRender:
 	// if time, show next block
@@ -1764,10 +1806,12 @@ tetrisStartRender:
 	breq	tetrisStartLoop
 
 	call	render
+
 	jmp		tetrisStartRender
 
 tetrisStartReturn:
 
+	pop		rIterator
 		.UNDEF	rIterator
 				
 	ret
@@ -1780,36 +1824,37 @@ tetrisStartReturn:
  */
 tetrisEndAnimation:
 		.DEF	rRow		= r16
-
 	push	rRow
 
 	initializeTimeri updateTimer, TETRIS_END_UPDATE_TIME
 
-	// Load pointer to "one past end" row
-	ldi		YL, LOW(matrix)
-	ldi		YH, HIGH(matrix)
-	adiw	Y, 8
-		
-	push	YL
-	push	YH
+	// Start with row 8 (one past bottom row)
+	ldi		rRow, 8
 
 tetrisEndLoop:
-	// back up one row and fill it
-	pop		YH
-	pop		YL	
-	ld		rRow, -Y
-	ldi		rRow, 0xFF
-	st		Y, rRow
-	push	YL
-	push	YH
-
-	// if filled all rows, end
+	// if filled all rows, end loop
 	dec		rRow
 	cpi		rRow, -1
 	breq	tetrisEndReturn
 
-tetrisEndRender:
+		.DEF	rRowMask	= r18
+		.DEF	rZero		= r19
 
+	// load adress to current row
+	ldi		YL, LOW(matrix)
+	ldi		YH, HIGH(matrix)
+	add		YL, rRow
+	adc		YH, rZero
+
+	// Load, fill and store row
+	ld		rRowMask, Y
+	ldi		rRowMask, 0xFF
+	st		Y, rRowMask
+		
+		.UNDEF	rRowMask
+		.UNDEF	rZero
+
+tetrisEndRender:
 	// if time, fill next row
 	checkTimeri updateTimer
 	cpi		rReturnL, 1
@@ -1819,9 +1864,6 @@ tetrisEndRender:
 	jmp		tetrisEndRender
 
 tetrisEndReturn:
-
-	pop		YH
-	pop		YL
 
 	pop		rRow
 		.UNDEF	rRow	
