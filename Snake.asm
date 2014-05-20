@@ -124,7 +124,7 @@
 
 	/* Asteroid */
 	// Constants
-	.EQU	MAX_ASTEROIDS			= 8
+	.EQU	MAX_ASTEROIDS			= 24
 	.EQU	ASTEROID_DATA_SIZE		= 4
 	// Data structure
 	.EQU	oAsteroidPositionX			= 0x00
@@ -192,10 +192,10 @@
 	.EQU	ASTEROIDS_SHIP_UPDATE_TIME		= 16
 	.EQU	ASTEROIDS_ASTEROID_UPDATE_TIME	= 32
 	.EQU	ASTEROIDS_BULLET_UPDATE_TIME	= 8
-	.EQU	ASTEROIDS_SPAWN_TIME			= 220
+	.EQU	ASTEROIDS_SPAWN_TIME			= 640
 	.EQU	ASTEROIDS_SHOOT_TIME			= 32
 	.EQU	ASTEROIDS_BULLET_FLASH_TIME		= ASTEROIDS_BULLET_UPDATE_TIME / 2
-	.EQU	ASTEROIDS_ANIMATION_FRAME_TIME	= 16
+	.EQU	ASTEROIDS_ANIMATION_FRAME_TIME	= 8
 
 
 	/**							
@@ -2531,8 +2531,27 @@ tetrisClearLoop:
  *****************************************************************************************/
 asteroidsGame:
 	call	clearMatrix
-	call	asteroidsEndAnimation
-	call	initializeAsteroidsGame
+	
+	// Hardware timer initializiton
+	ldi		rArgument0L, TIMER2_PRE_1024
+	call	initializeHardwareTimer2
+
+	// Initialize timers
+	initializeTimeri updateTimer, ASTEROIDS_SHIP_UPDATE_TIME
+	initializeTimeri bulletTimer, ASTEROIDS_BULLET_UPDATE_TIME
+	initializeTimeri asteroidTimer, ASTEROIDS_ASTEROID_UPDATE_TIME
+	initializeTimeri spawnTimer, ASTEROIDS_SPAWN_TIME
+	initializeTimeri shootTimer, ASTEROIDS_SHOOT_TIME
+	initializeTimeri flashTimer, ASTEROIDS_BULLET_FLASH_TIME
+
+
+	// Give the ship a valid position and direction
+	call	initializeShip
+
+	// Initialize the empty bullet and asteroid arrays
+	call	initializeAsteroidArray
+	call	initializeBulletArray
+	
 
 asteroidsGameLoop:
 
@@ -2562,11 +2581,10 @@ skipAsteroidSpawn:
 	brne	skipShipUpdate
 	
 	// Move the ship and check for collisions
-	call	moveShip
+	//call	moveShip
 	// Check collision between ship and asteroids
 
 skipShipUpdate:
-
 	// Check if it's time to update the bullets
 	checkTimeri bulletTimer
 	cpi		rReturnL, 1
@@ -2574,6 +2592,7 @@ skipShipUpdate:
 	
 	// Move the bullets and check for collisions
 	call	moveBullets
+	call	removeDeadBullets
 	// Check collision between bullets and asteroids asteroids
 
 skipBulletUpdate:
@@ -2587,14 +2606,14 @@ skipBulletUpdate:
 	call	flashBullets
 
 skipBulletFlash:
-	
+
 	// Check if it's time to shoot
 	checkTimeri shootTimer
 	cpi		rReturnL, 1
 	brne	skipShoot
 	
 	// Shoot a new bullet
-	call	createBullet
+	call	spawnBullet
 
 skipShoot:
 
@@ -2604,34 +2623,26 @@ skipShoot:
 	call	drawAsteroids
 	call	drawShip
 	call	drawBullets
-	
+
 	call	render
 
 	// Run another iteration
 	jmp		asteroidsGameLoop
-	
+
+asteroidsGameOver:
+	// Play the end animation
+	call	asteroidsEndAnimation
+	jmp		asteroidsGame
+
 	ret
 /* asteroidsGame end */
 
 
 /**
- * initializeAsteroidsGame
+ * initializeAsteroidsArrays
  */
-initializeAsteroidsGame:
-	// Hardware timer initializiton
-	ldi		rArgument0L, TIMER2_PRE_1024
-	call	initializeHardwareTimer2
+initializeAsteroidArray:
 	
-	// Initialize timers
-	initializeTimeri updateTimer, ASTEROIDS_SHIP_UPDATE_TIME
-	initializeTimeri bulletTimer, ASTEROIDS_BULLET_UPDATE_TIME
-	initializeTimeri asteroidTimer, ASTEROIDS_ASTEROID_UPDATE_TIME
-	initializeTimeri spawnTimer, ASTEROIDS_SPAWN_TIME
-	initializeTimeri shootTimer, ASTEROIDS_SHOOT_TIME
-	initializeTimeri flashTimer, ASTEROIDS_BULLET_FLASH_TIME
-	
-	call	initializeShip
-
 		.DEF	rZero = r18
 
 	// Set the asteroid count to 0
@@ -2640,16 +2651,28 @@ initializeAsteroidsGame:
 	ldi		rZero,	0
 	st		Y, rZero
 
-	// Set the bullet count to 0
-	ldi		YL, LOW(asteroidCount)
-	ldi		YH, HIGH(asteroidCount)
-	ldi		rZero,	0
-	st		Y, rZero
-
 		.UNDEF	rZero
 
 	ret
-/* initializeAsteroidsGame end */
+/* initializeAsteroidsArrays end */
+
+
+/**
+ * initializeAsteroidsArrays
+ */
+initializeBulletArray:
+
+		.DEF	rZero = r18
+
+	// Set the bullet count to 0
+	ldi		YL, LOW(bulletCount)
+	ldi		YH, HIGH(bulletCount)
+	ldi		rZero,	0
+	st		Y, rZero
+		.UNDEF	rZero
+
+	ret
+/* initializeAsteroidsArrays end */
 
 
 
@@ -2863,12 +2886,12 @@ spawnBullet:
 
 	// If the maximum amount of bullets has already been reached, crash
 	cpi		rBulletCount, MAX_BULLETS
-	brlo	createBullet	
+	brlo	generateBullet	
 	crash
 
 		.UNDEF	rBulletCount
 
-createBullet:
+generateBullet:
 	
 	// Load a pointer to the ship instance
 	ldi		YL, LOW(ship)
@@ -2938,7 +2961,7 @@ createBullet:
 		.UNDEF	rDirectionY
 
 	ret
-/* createBullet end */
+/* spawnBullet end */
 
 
 
@@ -3042,10 +3065,11 @@ drawBullets:
 	// Set the iterator to the first index
 	ldi		rIterator, 0
 
+	// If there are any bullets, draw them
 	cp		rIterator, rBulletCount
 	brlo	drawBulletLoop
 	
-	// If there aren't any bullets, don't do anything
+	// Otherwise, skip drawing
 	jmp		drawBulletsEnd
 
 drawBulletLoop:
@@ -3302,7 +3326,7 @@ removeDeadBullets:
 
 	// If there aren't any bullets, don't do anything
 	cpi		rBulletCount, 1
-	brlt	removeDeadBulletLoop
+	brge	removeDeadBulletLoop
 	jmp		removeDeadBulletEnd
 
 removeDeadBulletLoop:
@@ -3810,6 +3834,14 @@ asteroidsEndAnimationLoop:
 	// Draw the current frame of the animation
 	mov		rArgument0L, rCurrentFrame
 	call	drawAsteroidsExplosionAnimationFrame
+
+	// Render the frame
+	call	render
+
+	// Check if it's time to spawn a new asteroid
+	checkTimeri renderTimer
+	cpi		rReturnL, 1
+	brne	asteroidsEndAnimationLoop
 
 	// Increment the frame index
 	inc		rCurrentFrame
@@ -5670,6 +5702,12 @@ generateRandom4BitValue:
 
 	// Add the lower part of the timer value to the random number to give additional noise
 	lds		rTimerValueL, TCNT2
+	add		rRandomNumber, rTimerValueL
+	lsr2	rTimerValueL					
+	add		rRandomNumber, rTimerValueL
+	lsr2	rTimerValueL
+	add		rRandomNumber, rTimerValueL
+	lsr2	rTimerValueL
 	add		rRandomNumber, rTimerValueL
 
 	// Reverses the order of the 4 lowest bits and discards the rest
