@@ -767,7 +767,7 @@ snake_GameLoop:
 		.DEF	rPreviousDirectionX	= r18
 		.DEF	rPreviousDirectionY	= r19
 
-	call	readJoystickDirection
+	call	readJoystickDirection5
 	mov		rDirectionX, rReturnL
 	mov		rDirectionY, rReturnH
 
@@ -2005,7 +2005,7 @@ tetrisJoyStickUpdate:
 	call	clearTetrisBlock
 
 	// choose action from joystick
-	call	readJoystickDirection
+	call	readJoystickDirection5
 	mov		rDirectionX, rReturnL
 	mov		rDirectionY, rReturnH
 
@@ -2555,6 +2555,32 @@ asteroidsGame:
 
 asteroidsGameLoop:
 
+		.DEF	rJoystickDirectionX	= r16
+		.DEF	rJoystickDirectionY	= r17
+
+	// Get the joystick direction
+	call	readJoystickDirection9
+	mov		rJoystickDirectionX, rReturnL
+	mov		rJoystickDirectionY, rReturnH
+
+	// Only update the ship's direction if the joystick isn't neutral
+	cpi		rJoystickDirectionX, 0
+	brne	updateShipDirection
+	cpi		rJoystickDirectionY, 0
+	brne	updateShipDirection
+	jmp		skipUpdateShipDirection
+
+updateShipDirection:
+	// Load a pointer to the ship
+	ldi		YL, LOW(ship)		
+	ldi		YH, HIGH(ship)
+
+	// Update the ship direction
+	std		Y + oShipDirectionX, rJoystickDirectionX
+	std		Y + oShipDirectionY, rJoystickDirectionY
+
+skipUpdateShipDirection:
+
 	// Check if it's time for an asteroid update
 	checkTimeri asteroidTimer
 	cpi		rReturnL, 1
@@ -2580,11 +2606,22 @@ skipAsteroidSpawn:
 	cpi		rReturnL, 1
 	brne	skipShipUpdate
 	
-	// Move the ship and check for collisions
+	// If the joystick is neutral, don't move the ship
+	/*cpi		rJoystickDirectionX, 0
+	brne	doMoveShip
+	cpi		rJoystickDirectionY, 0
+	brne	doMoveShip
+	jmp		skipMoveShip
+	*/
+doMoveShip:
+	// Move the ship in the direction it's pointing
 	//call	moveShip
+
+skipMoveShip:
 	// Check collision between ship and asteroids
 
 skipShipUpdate:
+
 	// Check if it's time to update the bullets
 	checkTimeri bulletTimer
 	cpi		rReturnL, 1
@@ -2628,6 +2665,9 @@ skipShoot:
 
 	// Run another iteration
 	jmp		asteroidsGameLoop
+		
+		.UNDEF	rJoystickDirectionX
+		.UNDEF	rJoystickDirectionY
 
 asteroidsGameOver:
 	// Play the end animation
@@ -2685,7 +2725,7 @@ initializeShip:
 		.DEF	rDirectionX		= r20
 		.DEF	rDirectionY		= r21
 	
-	// Load a pointer to the first asteroid instance
+	// Load a pointer to the ship
 	ldi		YL, LOW(ship)
 	ldi		YH, HIGH(ship)
 	
@@ -5786,18 +5826,46 @@ readLoop:
 
 
 
-
 /**
- * Reads the X / Y values from the joystick and based on the global threshold
- * decides which direction it's pointed.
+ * Returns the direction the joystick is pointing based on readJoystickDirection9, but disregards corners.
  * @return rReturnL - Returns the joystick X direction (-1 is left, 0 is neutral, 1 is right)
  * @return rReturnH - Returns the joystick Y direction (-1 is up, 0 is neutral, 1 is down)
  */
- readJoystickDirection:
-		/* The joystick X axis 8 bit value */
-		.DEF	rJoystickX	= r6
+ readJoystickDirection5:
+		.DEF	rDirectionX = r18
+		.DEF	rDirectionY = r19
+	
+	// Retrieve the direction from the joystick direction 9 subroutine
+	call	readJoystickDirection9
+	mov		rDirectionX, rReturnL
+	mov		rDirectionY, rReturnH
 
-		/* The joystick Y axis 8 bit value */
+	// See if the joystick points to a corner
+	cpi		rDirectionX, 0
+	breq	notCorner
+	cpi		rDirectionY, 0
+	breq	notCorner
+
+	// If the joystick point to a corner, set it to neutral
+	ldi		rDirectionX, 0
+	ldi		rDirectionY, 0
+notCorner:
+
+		.UNDEF	rDirectionX
+		.UNDEF	rDirectionY
+ret
+/* readJoystickDirection5 end */
+
+
+/**
+ * Reads the X / Y values from the joystick and based on the global threshold
+ * decides which direction it's pointed. 
+ * @return rReturnL - Returns the joystick X direction (-1 is left, 0 is neutral, 1 is right)
+ * @return rReturnH - Returns the joystick Y direction (-1 is up, 0 is neutral, 1 is down)
+ */
+ readJoystickDirection9:
+		/* The joystick X/Y axis 8 bit values */
+		.DEF	rJoystickX	= r6
 		.DEF	rJoystickY	= r7
 
 		/* Joystick input registries */
@@ -5838,9 +5906,10 @@ readLoop:
 		.DEF rDirectionX		= r18
 		.DEF rDirectionY		= r19
 
+	// Translate the raw X/Y values into a direction vector
 	mov		rArgument0L, rJoystickX
 	mov		rArgument1L, rJoystickY
-	call	joystickValuesToDirection
+	call	joystickValuesToDirection9
 
 	pop		rJoystickY
 	pop		rJoystickX
@@ -5851,7 +5920,7 @@ readLoop:
 		.UNDEF	rJoystickX
 
 	ret
-/* readJoystickDirection end */
+/* readJoystickDirection9 end */
 
 
 
@@ -5889,7 +5958,7 @@ joystickValueTo8Bit:
  * @return rReturnL - Returns the joystick X direction (-1 is left, 0 is neutral, 1 is right)
  * @return rReturnH - Returns the joystick Y direction (-1 is up, 0 is neutral, 1 is down)
  */
-joystickValuesToDirection:
+joystickValuesToDirection9:
 		/* rDirection */
 		.DEF	rDirectionX		= r20
 		.DEF	rDirectionY		= r21
@@ -5927,14 +5996,6 @@ compareRight:
 	brsh	compareRightEnd
 	ldi		rDirectionX, 1
 compareRightEnd:
-	
-	cpi		rDirectionX, 0
-	breq	notCorner
-	cpi		rDirectionY, 0
-	breq	notCorner
-	ldi		rDirectionX, 0
-	ldi		rDirectionY, 0
-notCorner:
 
 	mov		rReturnL, rDirectionX
 	mov		rReturnH, rDirectionY
@@ -5945,7 +6006,7 @@ notCorner:
 		.UNDEF	rDirectionY
 
 	ret
-/* joystickValuesToDirection */
+/* joystickValuesToDirection9 */
 
 
 
@@ -6378,7 +6439,7 @@ programSelectLoop:
 	andi	rFrameIndex, 0x1
 
 skipIconUpdate:
-	call	readJoystickDirection
+	call	readJoystickDirection5
 	
 	mov		rJoystickDirectionX, rReturnL
 	mov		rJoystickDirectionY, rReturnH
