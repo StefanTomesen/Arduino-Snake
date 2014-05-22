@@ -2656,6 +2656,8 @@ skipBulletFlash:
 	
 	// Shoot a new bullet
 	call	spawnBullet
+	call	removeDeadBullets			// Clear the bullet if it's outside the screen
+	call	resolveBulletCollisions		// Run a collision test immediately when it spawns
 skipShoot:
 
 	// Render the current frame
@@ -2952,8 +2954,8 @@ generateBullet:
 	add		rPositionY, rDirectionY
 	
 	// Wrap the position
-	andi	rPositionX, 0b00000111
-	andi	rPositionY, 0b00000111
+	//andi	rPositionX, 0b00000111
+	//andi	rPositionY, 0b00000111
 
 		.DEF	rBulletCount	= r18
 		.DEF	rTempi			= r19
@@ -4870,6 +4872,8 @@ drawExitIcon:
 
 exitIconAlt:
 	// Draw the second version of the icon
+	call	clearMatrix
+/*
 	ldi		rRowBits, 0b00011000
 	st		Y+, rRowBits
 	ldi		rRowBits, 0b01011010
@@ -4886,7 +4890,7 @@ exitIconAlt:
 	st		Y+, rRowBits
 	ldi		rRowBits, 0b00111100
 	st		Y+, rRowBits
-
+*/
 	ret									// Return
 
 		.UNDEF	rRowBits
