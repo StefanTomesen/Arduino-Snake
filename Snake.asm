@@ -41,19 +41,20 @@
 	/**
 	 * Global constant definitions
 	 */ 
-	.EQU	RESETaddr			= 0x0000
+	.EQU	RESETaddr					= 0x0000
 
 	/* Joystick */
-	.EQU	JOYSTICK_X_AXIS		= 1
-	.EQU	JOYSTICK_Y_AXIS		= 0
-	.EQU	JOYSTICK_THRESHOLD	= 128 - 64
+	.EQU	JOYSTICK_X_AXIS				= 1
+	.EQU	JOYSTICK_Y_AXIS				= 0
+	.EQU	JOYSTICK_THRESHOLD			= 128 - 64
+	.EQU	JOYSTICK_DIAGONAL_THRESHOLD	= JOYSTICK_THRESHOLD / 2
 
 	/* Ledjoy */
-	.EQU	NUM_COLUMNS			= 8
-	.EQU	NUM_ROWS			= 8
+	.EQU	NUM_COLUMNS					= 8
+	.EQU	NUM_ROWS					= 8
 	
 	/* Timer2 */
-	.EQU	TIMER2_PRE_1024		= ((1 << CS22) | (1 << CS21) | (1 << CS20))
+	.EQU	TIMER2_PRE_1024				= ((1 << CS22) | (1 << CS21) | (1 << CS20))
 	// A timer value of 4096 roughly represents 67 seconds with 1024 prescaling (tested)
 
 
@@ -134,7 +135,7 @@
 
 	/* Bullet */
 	// Constants
-	.EQU	MAX_BULLETS				= 8
+	.EQU	MAX_BULLETS				= 24
 	.EQU	BULLET_DATA_SIZE		= 5
 	// Data structure
 	.EQU	oBulletPositionX		= 0x00
@@ -189,11 +190,11 @@
 	.EQU	TETRIS_JOYSTICK_UPDATE_TIME	= 16
 
 	/* Asteroids Game */
-	.EQU	ASTEROIDS_SHIP_UPDATE_TIME		= 16
-	.EQU	ASTEROIDS_ASTEROID_UPDATE_TIME	= 32
-	.EQU	ASTEROIDS_BULLET_UPDATE_TIME	= 8
-	.EQU	ASTEROIDS_SPAWN_TIME			= 640
-	.EQU	ASTEROIDS_SHOOT_TIME			= 32
+	.EQU	ASTEROIDS_SHIP_UPDATE_TIME		= 8
+	.EQU	ASTEROIDS_ASTEROID_UPDATE_TIME	= 16
+	.EQU	ASTEROIDS_BULLET_UPDATE_TIME	= 4
+	.EQU	ASTEROIDS_SPAWN_TIME			= 320
+	.EQU	ASTEROIDS_SHOOT_TIME			= 48
 	.EQU	ASTEROIDS_BULLET_FLASH_TIME		= ASTEROIDS_BULLET_UPDATE_TIME / 2
 	.EQU	ASTEROIDS_ANIMATION_FRAME_TIME	= 8
 	.EQU	ASTEROIDS_BOARD_FLASH_TIME		= 32
@@ -2538,6 +2539,9 @@ asteroidsGame:
 	ldi		rArgument0L, TIMER2_PRE_1024
 	call	initializeHardwareTimer2
 
+	// Run the start animation
+	call asteroidsStartAnimation
+
 	// Initialize timers
 	initializeTimeri updateTimer, ASTEROIDS_SHIP_UPDATE_TIME
 	initializeTimeri bulletTimer, ASTEROIDS_BULLET_UPDATE_TIME
@@ -2553,8 +2557,12 @@ asteroidsGame:
 	// Initialize the empty bullet and asteroid arrays
 	call	initializeAsteroidArray
 	call	initializeBulletArray
-	
 
+	// Start the game with two asteroids already out
+	call	spawnAsteroid
+	call	spawnAsteroid
+	
+// The loop running the asteroids game
 asteroidsGameLoop:
 
 		.DEF	rJoystickDirectionX	= r16
@@ -2580,7 +2588,6 @@ updateShipDirection:
 	// Update the ship direction
 	std		Y + oShipDirectionX, rJoystickDirectionX
 	std		Y + oShipDirectionY, rJoystickDirectionY
-
 skipUpdateShipDirection:
 
 	// Check if it's time for an asteroid update
@@ -2590,7 +2597,6 @@ skipUpdateShipDirection:
 
 	// Move asteroids
 	call	moveAsteroids
-
 skipAsteroidUpdate:
 
 	// Check if it's time to spawn a new asteroid
@@ -2600,7 +2606,6 @@ skipAsteroidUpdate:
 	
 	// Spawn a new asteroid
 	call	spawnAsteroid
-
 skipAsteroidSpawn:
 
 	// Check if it's time to update the ship
@@ -2609,19 +2614,19 @@ skipAsteroidSpawn:
 	brne	skipShipUpdate
 	
 	// If the joystick is neutral, don't move the ship
-	/*cpi		rJoystickDirectionX, 0
+	cpi		rJoystickDirectionX, 0
 	brne	doMoveShip
 	cpi		rJoystickDirectionY, 0
 	brne	doMoveShip
-	jmp		skipMoveShip
-	*/
+	jmp		doShipCollision
 doMoveShip:
 	// Move the ship in the direction it's pointing
-	//call	moveShip
-
-skipMoveShip:
-	// Check collision between ship and asteroids
-
+	call	moveShip
+doShipCollision:
+	// If the ship has collided with any asteroid, it's game over
+	call	checkShipCollision
+	cpi		rReturnL, 1
+	breq	asteroidsGameOver
 skipShipUpdate:
 
 	// Check if it's time to update the bullets
@@ -2632,8 +2637,7 @@ skipShipUpdate:
 	// Move the bullets and check for collisions
 	call	moveBullets
 	call	removeDeadBullets
-	// Check collision between bullets and asteroids asteroids
-
+	call	resolveBulletCollisions
 skipBulletUpdate:
 
 	// Check if it's time to flash the bullets
@@ -2643,7 +2647,6 @@ skipBulletUpdate:
 	
 	// Toggle the bullets' visibilities
 	call	flashBullets
-
 skipBulletFlash:
 
 	// Check if it's time to shoot
@@ -2653,7 +2656,6 @@ skipBulletFlash:
 	
 	// Shoot a new bullet
 	call	spawnBullet
-
 skipShoot:
 
 	// Render the current frame
@@ -2732,9 +2734,9 @@ initializeShip:
 	ldi		YH, HIGH(ship)
 	
 	// Set the default values for the ship
-	ldi		rPositionX, 4
+	ldi		rPositionX, 3
 	ldi		rPositionY, 4
-	ldi		rDirectionX, -1
+	ldi		rDirectionX, 1
 	ldi		rDirectionY, -1
 
 	// Store the data
@@ -3128,8 +3130,8 @@ drawBulletLoop:
 		.DEF	rTempi = r21
 
 	//	TODO Remove this. It shouldn't be necessary. Positions shouldn't be out outside the screen!
-	andi	rPositionX, 0b00000111		// Wrap position
-	andi	rPositionY, 0b00000111
+	//andi	rPositionX, 0b00000111		// Wrap position
+	//andi	rPositionY, 0b00000111
 
 		.UNDEF	rTempi
 
@@ -3383,10 +3385,12 @@ removeDeadBulletLoop:
 
 	// Check if the position is outside the screen by looking at the overflow
 	cpi		rPositionX, 0
-	breq	skipRemoveBullet
+	brne	doRemoveDeadBullet
 	cpi		rPositionY, 0
-	breq	skipRemoveBullet
+	brne	doRemoveDeadBullet
+	jmp		skipRemoveBullet
 
+doRemoveDeadBullet:
 	// If the bullet is outside the screen, remove it
 	push	YL
 	push	YH
@@ -3714,8 +3718,8 @@ drawAsteroidLoop:
 		.DEF	rTempi = r20
 
 	//	TODO Remove this. It shouldn't be necessary. Positions shouldn't be out outside the screen!
-	andi	rPositionX, 0b00000111
-	andi	rPositionY, 0b00000111
+	//andi	rPositionX, 0b00000111
+	//andi	rPositionY, 0b00000111
 
 		.UNDEF	rTempi
 
@@ -3855,6 +3859,118 @@ doRemoveAsteroid:
 
 
 
+/**
+ * Determine if the ship has collided with any asteroid
+ * @return rReturnL - Whether or not the ship has collided with an asteroid
+ */
+checkShipCollision:
+
+		.DEF	rPositionX = r18
+		.DEF	rPositionY = r19
+
+	// Load a pointer to the ship instance
+	ldi		YH, HIGH(ship)
+	ldi		YL, LOW(ship)
+	ldd		rPositionX, Y + oShipPositionX
+	ldd		rPositionY, Y + oShipPositionY
+
+	// Compare the ship position with all the asteroids
+	mov		rArgument0L, rPositionX
+	mov		rArgument1L, rPositionY
+	call	collidesWithAnyAsteroid
+
+		.UNDEF	rPositionX
+		.UNDEF	rPositionY
+
+	ret
+/* checkShipCollision end */
+
+
+
+/**
+ * Goes through the list of bullets and resolves any collisions with asteroids that occur.
+ */
+resolveBulletCollisions:
+		
+		.DEF	rBulletIndex	= r16
+
+	push	rBulletIndex				// Save register
+
+	// Start the iterator at the last index
+	ldi		YH, HIGH(bulletCount)
+	ldi		YL, LOW(bulletCount)
+	ld		rBulletIndex, Y
+	dec		rBulletIndex
+
+	// If there aren't any bullets, do nothing
+	cpi		rBulletIndex, 0
+	brlt	resolveBulletsEnd
+
+		.DEF	rTempi = r18
+	
+	// Get a pointer to the last instance
+	ldi		YH, HIGH(bulletArray)		// Load a pointer to the bullet array
+	ldi		YL, LOW(bulletArray)
+
+	ldi		rTempi, BULLET_DATA_SIZE	// Move the pointer to the last instance
+	mul		rBulletIndex, rTempi
+	add		YL, rMulResL 
+	adc		YH, rMulResH
+		.UNDEF	rTempi
+
+bulletCollisionLoop:
+		
+		.DEF	rPositionX				= r18
+		.DEF	rPositionY				= r19
+
+	// Load the bullet position
+	ldd		rPositionX, Y + oBulletPositionX
+	ldd		rPositionY, Y + oBulletPositionY
+	
+	push	YL								// Save the pointer registers during subroutine calls
+	push	YH
+
+	// Check if the bullet collides with any asteroid
+	mov		rArgument0L, rPositionX	
+	mov		rArgument1L, rPositionY
+	call	collidesWithAnyAsteroid	
+ 
+	 // If the bullet collided with an asteroid, remove it
+	cpi		rReturnL, 1						// rReturnL = Whether there was a collision
+	brne	skipRemoveCollidedBullet
+
+	// Remove the bullet and the asteroid
+	mov		rArgument0L, rReturnH			// rReturnH = The index of the asteroid that was collided with
+	call	removeAsteroid					// Remove the asteroid
+	mov		rArgument0L, rBulletIndex		
+	call	removeBullet					// Remove the bullet
+
+		.UNDEF	rPositionX
+		.UNDEF	rPositionY
+
+ skipRemoveCollidedBullet:
+
+	pop		YH								// Restore the pointer registers after subroutine calls
+	pop		YL
+
+	// Move the index and pointer to the next bullet
+	dec		rBulletIndex
+	subiw	YL, YH, BULLET_DATA_SIZE
+
+	// If there are any bullets left, run another iteration
+	cpi		rBulletIndex, 0
+	brge	bulletCollisionLoop
+
+resolveBulletsEnd:
+
+	pop		rBulletIndex					// Restore register
+
+		.UNDEF	rBulletIndex
+	
+	ret
+/* resolveBulletCollisions end */
+
+
 
 /**
  * Compares a certain position with all the asteroids and determines if there has been a collision
@@ -3888,7 +4004,7 @@ collidesWithAnyAsteroid:
 	dec		rAsteroidIndex
 
 	// Set a default return value to false
-	mov		rHasCollided, 0
+	ldi		rHasCollided, 0
 
 	// If there aren't any asteroids, return false
 	cpi		rAsteroidIndex, 0
@@ -3899,20 +4015,18 @@ collidesWithAnyAsteroid:
 	ldi		YL, LOW(asteroidArray)
 
 		.DEF	rTempi = r21
-
 	// Move the pointer to the last instance
 	ldi		rTempi, ASTEROID_DATA_SIZE
 	mul		rAsteroidIndex, rTempi
 	add		YL, rMulResL 
 	adc		YH, rMulResH
-
 		.UNDEF	rTempi
 
 asteroidCollisionLoop:
 
 	// Load the asteroid position
-	ldd		rPositionX, Y + oAsteroidPositionX
-	ldd		rPositionY, Y + oAsteroidPositionY
+	ldd		rAsteroidPositionX, Y + oAsteroidPositionX
+	ldd		rAsteroidPositionY, Y + oAsteroidPositionY
 
 	// Compare the tested position with one of the asteroids 
 	mov		rArgument0L, rPositionX
@@ -3926,7 +4040,7 @@ asteroidCollisionLoop:
 	cpi		rHasCollided, 1
 	breq	asteroidCollisionReturn
 
-	// Move the index to the next asteroid
+	// Move the index and pointer to the next asteroid
 	dec		rAsteroidIndex
 	subiw	YL, YH, ASTEROID_DATA_SIZE
 
@@ -3949,6 +4063,8 @@ asteroidCollisionReturn:
 		.UNDEF	rPositionY
 		.UNDEF	rAsteroidPositionX
 		.UNDEF	rAsteroidPositionY
+		.UNDEF	rAsteroidIndex
+		.UNDEF	rHasCollided
 
 	ret
 /* collidesWithAnyAsteroid end */
@@ -3960,7 +4076,7 @@ asteroidCollisionReturn:
 /**
  * Draw a blinking ship at the start of the game
  */
-asteroisdStartAnimation:
+asteroidsStartAnimation:
 		/** The counter that keeps track of how many blinks we have left */
 		.DEF	rRemainingBlinks = r16
 		.DEF	rTemp			 = r18
@@ -6015,39 +6131,93 @@ readLoop:
 
 
 /**
- * Returns the direction the joystick is pointing based on readJoystickDirection9, but disregards corners.
+ * Converts the 10 bit joystick value to an 8 bit value,
+ * discarding the two least significant bits
+ * @param rArgument0H + rArgument0L - 10 bit value from the joystick input
+ * @return rReturnL - value between 0 255
+ */
+joystickValueTo8Bit:
+		/* rHighByte, rLowByte */
+		.DEF	rHighByte	= r18
+		.DEF	rLowByte	= r19
+
+	mov		rHighByte, rArgument0H
+	mov		rLowByte, rArgument0L
+	lsr2	rLowByte
+	lsl6	rHighByte
+	or		rLowByte, rHighByte
+	mov		rReturnL, rLowByte
+	ldi		rReturnH, 0
+
+		.UNDEF	rHighByte
+		.UNDEF	rLowByte
+
+	ret
+/* joystickValueTo8Bit end */
+
+
+/**
+ * Reads and returns the current axis aligned joystick direction, (4 directions + neutral)
  * @return rReturnL - Returns the joystick X direction (-1 is left, 0 is neutral, 1 is right)
  * @return rReturnH - Returns the joystick Y direction (-1 is up, 0 is neutral, 1 is down)
  */
  readJoystickDirection5:
-		.DEF	rDirectionX = r18
-		.DEF	rDirectionY = r19
-	
-	// Retrieve the direction from the joystick direction 9 subroutine
-	call	readJoystickDirection9
-	mov		rDirectionX, rReturnL
-	mov		rDirectionY, rReturnH
+		/* The joystick X/Y axis 8 bit values */
+		.DEF	rJoystickX	= r6
+		.DEF	rJoystickY	= r7
 
-	// See if the joystick points to a corner
-	cpi		rDirectionX, 0
-	breq	notCorner
-	cpi		rDirectionY, 0
-	breq	notCorner
+		/* Joystick input registries */
+		.DEF	rJoystickL	= r18
+		.DEF	rJoystickH	= r19
 
-	// If the joystick point to a corner, set it to neutral
-	ldi		rDirectionX, 0
-	ldi		rDirectionY, 0
-notCorner:
+	push	rJoystickX
+	push	rJoystickY
 
-		.UNDEF	rDirectionX
-		.UNDEF	rDirectionY
-ret
+	// Read X axis
+	ldi		rArgument0L, 1			// 1 represents X
+	call	readJoystick
+	mov		rJoystickL, rReturnL	// Store joystick input value
+	mov		rJoystickH, rReturnH
+
+	// Convert 10 bit value to 8 bit, discarding lowest 2 bits
+	mov		rArgument0L, rJoystickL
+	mov		rArgument0H, rJoystickH
+	call	joystickValueTo8Bit
+	mov		rJoystickX, rReturnL
+
+	// Read Y axis
+	ldi		rArgument0L, 0
+	call	readJoystick
+	mov		rJoystickL, rReturnL	// Store joystick input value
+	mov		rJoystickH, rReturnH
+
+	// Convert 10 bit value to 8 bit, discarding lowest 2 bits
+	mov		rArgument0L, rJoystickL
+	mov		rArgument0H, rJoystickH
+	call	joystickValueTo8Bit
+	mov		rJoystickY, rReturnL
+
+		.UNDEF	rJoystickL
+		.UNDEF	rJoystickH
+
+	// Translate the raw X/Y values into a direction vector
+	mov		rArgument0L, rJoystickX
+	mov		rArgument1L, rJoystickY
+	call	joystickValuesToDirection5
+
+	pop		rJoystickY
+	pop		rJoystickX
+
+		.UNDEF	rJoystickY
+		.UNDEF	rJoystickX
+
+	ret
 /* readJoystickDirection5 end */
 
 
+
 /**
- * Reads the X / Y values from the joystick and based on the global threshold
- * decides which direction it's pointed. 
+ * Reads and returns the current joystick direction, including the corners (8 directions + neutral)
  * @return rReturnL - Returns the joystick X direction (-1 is left, 0 is neutral, 1 is right)
  * @return rReturnH - Returns the joystick Y direction (-1 is up, 0 is neutral, 1 is down)
  */
@@ -6090,10 +6260,6 @@ ret
 		.UNDEF	rJoystickL
 		.UNDEF	rJoystickH
 
-		/* rDirection */
-		.DEF rDirectionX		= r18
-		.DEF rDirectionY		= r19
-
 	// Translate the raw X/Y values into a direction vector
 	mov		rArgument0L, rJoystickX
 	mov		rArgument1L, rJoystickY
@@ -6102,40 +6268,11 @@ ret
 	pop		rJoystickY
 	pop		rJoystickX
 
-		.UNDEF	rDirectionX
-		.UNDEF	rDirectionY
 		.UNDEF	rJoystickY
 		.UNDEF	rJoystickX
 
 	ret
 /* readJoystickDirection9 end */
-
-
-
-/**
- * Converts the 10 bit joystick value to an 8 bit value,
- * discarding the two least significant bits
- * @param rArgument0H + rArgument0L - 10 bit value from the joystick input
- * @return rReturnL - value between 0 255
- */
-joystickValueTo8Bit:
-		/* rHighByte, rLowByte */
-		.DEF	rHighByte	= r18
-		.DEF	rLowByte	= r19
-
-	mov		rHighByte, rArgument0H
-	mov		rLowByte, rArgument0L
-	lsr2	rLowByte
-	lsl6	rHighByte
-	or		rLowByte, rHighByte
-	mov		rReturnL, rLowByte
-	ldi		rReturnH, 0
-
-		.UNDEF	rHighByte
-		.UNDEF	rLowByte
-
-	ret
-/* joystickValueTo8Bit end */
 
 
 
@@ -6146,7 +6283,7 @@ joystickValueTo8Bit:
  * @return rReturnL - Returns the joystick X direction (-1 is left, 0 is neutral, 1 is right)
  * @return rReturnH - Returns the joystick Y direction (-1 is up, 0 is neutral, 1 is down)
  */
-joystickValuesToDirection9:
+joystickValuesToDirection5:
 		/* rDirection */
 		.DEF	rDirectionX		= r20
 		.DEF	rDirectionY		= r21
@@ -6184,7 +6321,113 @@ compareRight:
 	brsh	compareRightEnd
 	ldi		rDirectionX, 1
 compareRightEnd:
+	
+	// See if the joystick points to a corner
+	cpi		rDirectionX, 0
+	breq	notCorner
+	cpi		rDirectionY, 0
+	breq	notCorner
 
+	// If the joystick point to a corner, set it to neutral
+	ldi		rDirectionX, 0
+	ldi		rDirectionY, 0
+notCorner:
+
+	mov		rReturnL, rDirectionX
+	mov		rReturnH, rDirectionY
+
+		.UNDEF	rJoystickX
+		.UNDEF	rJoystickY
+		.UNDEF	rDirectionX
+		.UNDEF	rDirectionY
+
+	ret
+/* joystickValuesToDirection5 */
+
+
+
+/**
+ * Get the current direction based on the joystick position. Both axis aligned and diagonal
+ * directions are valid. 
+ * @param rArgument0L - The 8 bit X position of the joystick (0 - 255)
+ * @param rArgument1L - The 8 bit Y position of the joystick (0 - 255)
+ * @return rReturnL - Returns the joystick X direction (-1 is left, 0 is neutral, 1 is right)
+ * @return rReturnH - Returns the joystick Y direction (-1 is up, 0 is neutral, 1 is down)
+ */
+joystickValuesToDirection9:
+		/* rDirection */
+		.DEF	rDirectionX		= r20
+		.DEF	rDirectionY		= r21
+
+		/* The joystick X/Y axis 8 bit value */
+		.DEF	rJoystickX		= r18
+		.DEF	rJoystickY		= r19
+
+	mov		rJoystickX, rArgument0L
+	mov		rJoystickY, rArgument1L
+
+	ldi		rDirectionY, 0
+	ldi		rDirectionX, 0
+
+	// Compare all the directions based on the diagonal threshold (narrow)
+
+	cpi		rJoystickY, 128 + (JOYSTICK_DIAGONAL_THRESHOLD - 1)
+	brlo	diagonalCompareUpEnd
+	ldi		rDirectionY, -1
+diagonalCompareUpEnd:
+	
+	cpi		rJoystickY, 128 - (JOYSTICK_DIAGONAL_THRESHOLD - 1)
+	brsh	diagonalCompareDownEnd
+	ldi		rDirectionY, 1
+diagonalCompareDownEnd:
+
+	cpi		rJoystickX, 128 + (JOYSTICK_DIAGONAL_THRESHOLD - 1)
+	brlo	diagonalCompareLeftEnd
+	ldi		rDirectionX, -1
+diagonalCompareLeftEnd:
+
+	cpi		rJoystickX, 128 - (JOYSTICK_DIAGONAL_THRESHOLD - 1)
+	brsh	diagonalCompareRightEnd
+	ldi		rDirectionX, 1
+diagonalCompareRightEnd:
+	
+	// If it's a straight or neutral value, compare it again with the straight threshold 
+	cpi		rDirectionX, 0
+	breq	compareStraightDirections
+	cpi		rDirectionY, 0
+	breq	compareStraightDirections
+
+	// If it's a diagonal value, return it
+	jmp		returnJoystickDirection9
+
+compareStraightDirections:
+	ldi		rDirectionY, 0
+	ldi		rDirectionX, 0
+	
+	// Compare all the directions based on the normal threshold (wider)
+	 
+	cpi		rJoystickY, 128 + (JOYSTICK_THRESHOLD - 1)
+	brlo	straightCompareUpEnd
+	ldi		rDirectionY, -1
+straightCompareUpEnd:
+
+	cpi		rJoystickY, 128 - (JOYSTICK_THRESHOLD - 1)
+	brsh	straightCompareDownEnd
+	ldi		rDirectionY, 1
+straightCompareDownEnd:
+
+	cpi		rJoystickX, 128 + (JOYSTICK_THRESHOLD - 1)
+	brlo	straightCompareLeftEnd
+	ldi		rDirectionX, -1
+straightCompareLeftEnd:
+
+	cpi		rJoystickX, 128 - (JOYSTICK_THRESHOLD - 1)
+	brsh	straightCompareRightEnd
+	ldi		rDirectionX, 1
+straightCompareRightEnd:
+
+	// Return the directions
+returnJoystickDirection9:
 	mov		rReturnL, rDirectionX
 	mov		rReturnH, rDirectionY
 
