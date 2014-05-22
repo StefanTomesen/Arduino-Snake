@@ -3855,6 +3855,108 @@ doRemoveAsteroid:
 
 
 
+
+/**
+ * Compares a certain position with all the asteroids and determines if there has been a collision
+ * @param rArgument0L - X coordinate of the position being tested
+ * @param rArgument1L - Y coordinate of the position being tested
+ * @return rReturnL - Whether or not a collision has occured
+ * @return rReturnH - The index of the asteroid being collided with
+ */
+collidesWithAnyAsteroid:
+		
+		.DEF	rPositionX = r2
+		.DEF	rPositionY = r3
+		.DEF	rAsteroidPositionX = r18
+		.DEF	rAsteroidPositionY = r19
+		.DEF	rAsteroidIndex = r16
+		.DEF	rHasCollided = r20
+
+	// Save registers
+	push	rPositionX
+	push	rPositionY
+	push	rAsteroidIndex
+
+	// Copy the arguments
+	mov		rPositionX, rArgument0L
+	mov		rPositionY, rArgument1L
+
+	// Start the iterator at the last index
+	ldi		YH, HIGH(asteroidCount)
+	ldi		YL, LOW(asteroidCount)
+	ld		rAsteroidIndex, Y
+	dec		rAsteroidIndex
+
+	// Set a default return value to false
+	mov		rHasCollided, 0
+
+	// If there aren't any asteroids, return false
+	cpi		rAsteroidIndex, 0
+	brlt	asteroidCollisionReturn
+
+	// Load a pointer to the asteorid array
+	ldi		YH, HIGH(asteroidArray)
+	ldi		YL, LOW(asteroidArray)
+
+		.DEF	rTempi = r21
+
+	// Move the pointer to the last instance
+	ldi		rTempi, ASTEROID_DATA_SIZE
+	mul		rAsteroidIndex, rTempi
+	add		YL, rMulResL 
+	adc		YH, rMulResH
+
+		.UNDEF	rTempi
+
+asteroidCollisionLoop:
+
+	// Load the asteroid position
+	ldd		rPositionX, Y + oAsteroidPositionX
+	ldd		rPositionY, Y + oAsteroidPositionY
+
+	// Compare the tested position with one of the asteroids 
+	mov		rArgument0L, rPositionX
+	mov		rArgument0H, rPositionY
+	mov		rArgument1L, rAsteroidPositionX
+	mov		rArgument1H, rAsteroidPositionY
+	call	checkCollision					// (the Y registers are not saved for optimization purposes as checkCollision doesn't use them)
+	mov		rHasCollided, rReturnL
+
+	// If we collided with an asteroid, return true
+	cpi		rHasCollided, 1
+	breq	asteroidCollisionReturn
+
+	// Move the index to the next asteroid
+	dec		rAsteroidIndex
+	subiw	YL, YH, ASTEROID_DATA_SIZE
+
+	// If there are any asteroids left, run another iteration
+	cpi		rAsteroidIndex, 0
+	brge	asteroidCollisionLoop
+
+asteroidCollisionReturn:
+	
+	// Return whether there has been a collision and the index of the collision (-1 or an undefined negative number otherwise)
+	mov		rReturnL, rHasCollided
+	mov		rReturnH, rAsteroidIndex
+
+	// Restore registers
+	pop		rAsteroidIndex
+	pop		rPositionY
+	pop		rPositionX
+
+		.UNDEF	rPositionX
+		.UNDEF	rPositionY
+		.UNDEF	rAsteroidPositionX
+		.UNDEF	rAsteroidPositionY
+
+	ret
+/* collidesWithAnyAsteroid end */
+
+
+
+
+
 /**
  * Draw a blinking ship at the start of the game
  */
@@ -3902,6 +4004,7 @@ asteroidsStartBlinkEnd:
 
 	ret
 /* asteroidsStartAnimation end */
+
 
 
 
