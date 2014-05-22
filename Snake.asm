@@ -125,7 +125,7 @@
 
 	/* Asteroid */
 	// Constants
-	.EQU	MAX_ASTEROIDS			= 24
+	.EQU	MAX_ASTEROIDS			= 32
 	.EQU	ASTEROID_DATA_SIZE		= 4
 	// Data structure
 	.EQU	oAsteroidPositionX			= 0x00
@@ -135,7 +135,7 @@
 
 	/* Bullet */
 	// Constants
-	.EQU	MAX_BULLETS				= 24
+	.EQU	MAX_BULLETS				= 8
 	.EQU	BULLET_DATA_SIZE		= 5
 	// Data structure
 	.EQU	oBulletPositionX		= 0x00
