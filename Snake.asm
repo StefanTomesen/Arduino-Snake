@@ -196,6 +196,8 @@
 	.EQU	ASTEROIDS_SHOOT_TIME			= 32
 	.EQU	ASTEROIDS_BULLET_FLASH_TIME		= ASTEROIDS_BULLET_UPDATE_TIME / 2
 	.EQU	ASTEROIDS_ANIMATION_FRAME_TIME	= 8
+	.EQU	ASTEROIDS_BOARD_FLASH_TIME		= 32
+	.EQU	ASTEROIDS_BOARD_BLINKS			= 5
 
 
 	/**							
@@ -3852,6 +3854,57 @@ doRemoveAsteroid:
 /* removeAsteroid end */
 
 
+
+/**
+ * Draw a blinking ship at the start of the game
+ */
+asteroisdStartAnimation:
+		/** The counter that keeps track of how many blinks we have left */
+		.DEF	rRemainingBlinks = r16
+		.DEF	rTemp			 = r18
+	push	rRemainingBlinks
+
+	initializeTimeri boardFlashTimer, ASTEROIDS_BOARD_FLASH_TIME
+
+	call	drawShipMatrix
+	ldi		rRemainingBlinks, ASTEROIDS_BOARD_BLINKS
+
+asteroidsStartRender:
+	call	render
+
+	// Wait for an update and then blink
+	checkTimeri boardFlashTimer			// returns boolean whether the timer has reached it's target time and reset	
+	cpi		rReturnL, 1
+	breq	asteroidsStartBlink			// If an update was recieved, blink
+	jmp		asteroidsStartRender		// If an update didn't occur, render and wait some more
+
+	// Blink, decrement the remaining blinks and wait for the next blink
+asteroidsStartBlink:
+	mov		rTemp, rRemainingBlinks	
+	andi	rTemp, 0x01								// Mask out whether the remaining blinks are an odd or even number
+	cpi		rTemp, (ASTEROIDS_BOARD_BLINKS & 0x01)
+	brne	asteroidsStartDrawShip
+
+	call	clearMatrix
+	jmp		asteroidsStartBlinkEnd
+
+asteroidsStartDrawShip:
+	call	drawShipMatrix
+
+asteroidsStartBlinkEnd:
+	dec		rRemainingBlinks
+	cpi		rRemainingBlinks, 0
+	brne	asteroidsStartRender
+
+	pop		rRemainingBlinks
+		.UNDEF	rRemainingBlinks 
+		.UNDEF	rTemp
+
+	ret
+/* asteroidsStartAnimation end */
+
+
+
 /**
  * Renders an animation of the ship hitting an asteroid and exploding after the game 
  * has been lost.
@@ -5045,6 +5098,38 @@ fillBoardIconAlt:
 /* drawFillBoardIcon end */	
 
 
+/**
+ * Draws a frame of the ship to the screen, flickering every other frame.
+ * @param rArgument0L - 
+ */
+drawShipMatrix:
+		/* Register used for the pixels in a row */
+		.DEF	rRowBits	= r18
+
+	// Initialize the matrix with a smiley set
+	ldi		YH, HIGH(matrix)	// Set Y to matrix address
+	ldi		YL, LOW(matrix)
+	ldi		rRowBits, 0b00010000
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b00100000
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b11111000
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b11111100
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b00001101
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b00001110
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b00001100
+	st		Y+, rRowBits
+	ldi		rRowBits, 0b00001100
+	st		Y+, rRowBits
+
+		.UNDEF	rRowBits
+
+	ret
+/* drawShipMatrix end */	
 
 /**
  * Set the bits in the matrix with a smiley
